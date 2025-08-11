@@ -168,7 +168,15 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Auth: register/login/refresh/me"
+    - "RBAC: course visibility"
+    - "Course CRUD + Lessons"
+    - "Assignments + Submissions + AI grading"
+    - "Discussions + Posts"
+    - "Q&A chat endpoints"
+    - "Files upload/download"
+    - "Analytics endpoints"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
