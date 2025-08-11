@@ -107,37 +107,46 @@ user_problem_statement: Build AI Course & Quiz Generator + per-course Q&A chat u
 backend:
   - task: "AI Generate Course API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented /api/ai/generate_course using LlmChat with Gemini, saves Course to Mongo using UUIDs and returns Course model."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Fixed AI response parsing issue (str conversion). POST /api/ai/generate_course successfully creates courses with correct structure: 4 lessons, quiz questions, persisted to MongoDB. Course ID: 13dacc56-dc95-4a15-9643-94ce3e139a27"
   - task: "Courses list & get APIs"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented /api/courses and /api/courses/{id}."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/courses returns course list including created course. GET /api/courses/{id} successfully retrieves specific course with all fields (id, topic, audience, difficulty, lessons, quiz)."
   - task: "Course Chat API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented /api/ai/chat and chat history endpoint with simple keyword retrieval."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/ai/chat works with course context. GET /api/chats/{course_id}/{session_id} returns message history with user/assistant roles. Chat responses are contextual and stored properly."
 
 frontend:
   - task: "UI Generator + List + Course View + Chat"
