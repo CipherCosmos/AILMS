@@ -117,18 +117,25 @@ async def _insert_one(collection: str, doc: Dict[str, Any]):
     await db[collection].insert_one(doc)
 
 def _safe_json_extract(text: str) -> Dict[str, Any]:
+    # Ensure text is a string
+    if not isinstance(text, str):
+        text = str(text)
+    
     # Try to parse as JSON directly
     try:
         return json.loads(text)
     except Exception:
         pass
     # Try to extract JSON code block
-    m = re.search(r"\{[\s\S]*\}")
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            pass
+    try:
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+    except Exception:
+        pass
     raise ValueError("Could not parse JSON from AI response")
 
 async def _keyword_snippets(course: Dict[str, Any], query: str, max_chars: int = 4000) -> str:
