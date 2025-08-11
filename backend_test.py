@@ -71,9 +71,10 @@ class BackendTester:
                     self.log_test("Auth Register Instructor", False, f"Missing fields: {missing_fields}", data)
                     return
                 
-                if data["role"] == "instructor" and data["email"] == "instructor@example.com":
+                # First user gets admin role automatically (bootstrap)
+                if data["role"] in ["instructor", "admin"] and data["email"] == "instructor@example.com":
                     self.instructor_user_id = data["id"]
-                    self.log_test("Auth Register Instructor", True, f"Instructor registered with ID: {self.instructor_user_id}")
+                    self.log_test("Auth Register Instructor", True, f"User registered with ID: {self.instructor_user_id}, role: {data['role']}")
                 else:
                     self.log_test("Auth Register Instructor", False, f"Role/email mismatch", data)
             else:
