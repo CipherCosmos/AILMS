@@ -342,7 +342,7 @@ class BackendTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data["role"] == "student" and data["email"] == "student@lms.test":
+                if data["role"] == "student" and data["email"] == "student@example.com":
                     self.student_user_id = data["id"]
                     self.log_test("Register Student", True, f"Student registered with ID: {self.student_user_id}")
                 else:
