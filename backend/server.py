@@ -208,7 +208,7 @@ Ensure options have EXACTLY one is_correct=true. Keep content comprehensive but 
     try:
         chat = _get_ai(api_key=None, session_id=f"course-gen-{uuid.uuid4()}", system_message=system_message)
         ai_resp = await chat.send_message(UserMessage(text=prompt))
-        data = _safe_json_extract(ai_resp)
+        data = _safe_json_extract(str(ai_resp))
     except Exception as e:
         logger.exception("AI generation failed")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
