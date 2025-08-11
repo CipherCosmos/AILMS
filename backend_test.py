@@ -71,7 +71,7 @@ class BackendTester:
                     self.log_test("Auth Register Instructor", False, f"Missing fields: {missing_fields}", data)
                     return
                 
-                if data["role"] == "instructor" and data["email"] == "instructor@lms.test":
+                if data["role"] == "instructor" and data["email"] == "instructor@example.com":
                     self.instructor_user_id = data["id"]
                     self.log_test("Auth Register Instructor", True, f"Instructor registered with ID: {self.instructor_user_id}")
                 else:
