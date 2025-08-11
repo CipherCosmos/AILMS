@@ -305,6 +305,10 @@ async def create_course(body: CourseCreate, user=Depends(_current_user)):
 async def list_courses(user=Depends(_current_user)):
     q = {} if user["role"] in ["admin", "auditor"] else {"$or": [{"published": True}, {"owner_id": user["id"]}, {"enrolled_user_ids": user["id"]}]}
     docs = await db.courses.find(q).sort("created_at", -1).to_list(200)
+    # Convert _id to id for each document
+    for doc in docs:
+        if "_id" in doc and "id" not in doc:
+            doc["id"] = doc["_id"]
     return [Course(**d) for d in docs]
 
 @api.get("/courses/{cid}", response_model=Course)
