@@ -327,7 +327,7 @@ class BackendTester:
     def test_register_student(self):
         """Test 9: Register student user"""
         payload = {
-            "email": "student@lms.test",
+            "email": "student@example.com",
             "name": "Jane Student",
             "password": "student123",
             "role": "student"
