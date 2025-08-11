@@ -305,11 +305,38 @@ async def create_course(body: CourseCreate, user=Depends(_current_user)):
 async def list_courses(user=Depends(_current_user)):
     q = {} if user["role"] in ["admin", "auditor"] else {"$or": [{"published": True}, {"owner_id": user["id"]}, {"enrolled_user_ids": user["id"]}]}
     docs = await db.courses.find(q).sort("created_at", -1).to_list(200)
-    # Convert _id to id for each document
+    
+    # Convert _id to id and handle legacy data
+    valid_courses = []
     for doc in docs:
         if "_id" in doc and "id" not in doc:
             doc["id"] = doc["_id"]
-    return [Course(**d) for d in docs]
+        
+        # Skip courses missing required fields (legacy data)
+        if not doc.get("title") and not doc.get("topic"):
+            continue
+        if not doc.get("owner_id"):
+            continue
+            
+        # Handle legacy courses that have 'topic' instead of 'title'
+        if not doc.get("title") and doc.get("topic"):
+            doc["title"] = doc["topic"]
+            
+        # Ensure all required fields have defaults
+        doc.setdefault("audience", "General")
+        doc.setdefault("difficulty", "beginner")
+        doc.setdefault("lessons", [])
+        doc.setdefault("quiz", [])
+        doc.setdefault("published", False)
+        doc.setdefault("enrolled_user_ids", [])
+        
+        try:
+            valid_courses.append(Course(**doc))
+        except Exception as e:
+            logger.warning(f"Skipping invalid course {doc.get('id', 'unknown')}: {e}")
+            continue
+    
+    return valid_courses
 
 @api.get("/courses/{cid}", response_model=Course)
 async def get_course(cid: str, user=Depends(_current_user)):
