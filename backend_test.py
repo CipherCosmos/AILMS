@@ -139,7 +139,7 @@ class BackendTester:
         """Test 4: POST /api/auth/refresh"""
         # First get refresh token from login
         payload = {
-            "email": "instructor@lms.test",
+            "email": "instructor@example.com",
             "password": "instructor123"
         }
         
