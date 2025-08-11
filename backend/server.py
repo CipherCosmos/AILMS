@@ -282,6 +282,7 @@ async def course_chat(req: ChatRequest):
     try:
         chat = _get_ai(api_key=None, session_id=req.session_id, system_message=system_message)
         ai_resp = await chat.send_message(UserMessage(text=user_text))
+        ai_resp_str = str(ai_resp)
     except Exception as e:
         logger.exception("AI chat failed")
         raise HTTPException(status_code=500, detail=f"AI chat failed: {e}")
