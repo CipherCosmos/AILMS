@@ -289,11 +289,11 @@ async def course_chat(req: ChatRequest):
 
     # store both messages
     user_msg = ChatMessageModel(course_id=req.course_id, session_id=req.session_id, role="user", message=req.message)
-    asst_msg = ChatMessageModel(course_id=req.course_id, session_id=req.session_id, role="assistant", message=ai_resp)
+    asst_msg = ChatMessageModel(course_id=req.course_id, session_id=req.session_id, role="assistant", message=ai_resp_str)
     await _insert_one("chats", user_msg.dict())
     await _insert_one("chats", asst_msg.dict())
 
-    return {"reply": ai_resp, "assistant_message_id": asst_msg.id}
+    return {"reply": ai_resp_str, "assistant_message_id": asst_msg.id}
 
 @api_router.get("/chats/{course_id}/{session_id}", response_model=List[ChatMessageModel])
 async def get_chat_history(course_id: str, session_id: str):
