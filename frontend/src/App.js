@@ -175,7 +175,7 @@ function CourseView({ course, onBack }) {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask anything about this course..."
-              onKeyDown={(e) => e.key === "Enter" &amp;&amp; !sending ? send() : null}
+              onKeyDown={(e) => (e.key === "Enter" && !sending ? (send(), null) : null)}
             />
             <button className="btn" disabled={sending} onClick={send}>{sending ? "Thinking..." : "Send"}</button>
           </div>
