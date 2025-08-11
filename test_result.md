@@ -101,3 +101,71 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: Build AI Course & Quiz Generator + per-course Q&A chat using Gemini 2.0 Flash via Emergent integrations. Persist to Mongo with UUIDs and expose REST endpoints under /api. Frontend consumes via REACT_APP_BACKEND_URL only.
+
+backend:
+  - task: "AI Generate Course API"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented /api/ai/generate_course using LlmChat with Gemini, saves Course to Mongo using UUIDs and returns Course model."
+  - task: "Courses list & get APIs"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented /api/courses and /api/courses/{id}."
+  - task: "Course Chat API"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented /api/ai/chat and chat history endpoint with simple keyword retrieval."
+
+frontend:
+  - task: "UI Generator + List + Course View + Chat"
+    implemented: true
+    working: NA
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: NA
+        agent: "main"
+        comment: "Implemented React UI using REACT_APP_BACKEND_URL with forms and chat. Awaiting user approval to run UI tests."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "AI Generate Course API"
+    - "Course Chat API"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Please test backend endpoints: POST /api/ai/generate_course, GET /api/courses, GET /api/courses/{id}, POST /api/ai/chat, GET /api/chats/{course_id}/{session_id}. Environment: GEMINI_API_KEY and DEFAULT_LLM_MODEL set in backend/.env. Use Mongo per template."
