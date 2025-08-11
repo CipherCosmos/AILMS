@@ -125,7 +125,7 @@ class BackendTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("role") == "instructor" and data.get("email") == "instructor@lms.test":
+                if data.get("role") == "instructor" and data.get("email") == "instructor@example.com":
                     self.log_test("Auth Me Instructor", True, f"Instructor profile retrieved: {data['name']}")
                 else:
                     self.log_test("Auth Me Instructor", False, "Profile data mismatch", data)
