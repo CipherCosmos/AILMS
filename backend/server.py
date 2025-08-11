@@ -447,7 +447,7 @@ async def submit_quiz(course_id: str, body: QuizSubmitRequest, user=Depends(_cur
 @api.post("/files/upload")
 async def upload_file(file: UploadFile = File(...), user=Depends(_current_user)):
     file_id = _uuid()
-    grid_in = await fs_bucket.open_upload_stream_with_id(file_id, file.filename, metadata={"user_id": user["id"], "content_type": file.content_type})
+    grid_in = fs_bucket.open_upload_stream_with_id(file_id, file.filename, metadata={"user_id": user["id"], "content_type": file.content_type})
     while True:
         chunk = await file.read(1024 * 512)
         if not chunk:
