@@ -464,7 +464,7 @@ from fastapi.responses import StreamingResponse
 @api.get("/files/{file_id}")
 async def download_file(file_id: str, user=Depends(_current_user)):
     try:
-        grid_out = fs_bucket.open_download_stream(file_id)
+        grid_out = await fs_bucket.open_download_stream(file_id)
     except Exception:
         raise HTTPException(404, "File not found")
     headers = {"Content-Disposition": f"attachment; filename={grid_out.filename}"}
