@@ -49,7 +49,7 @@ class BackendTester:
     def test_auth_register_instructor(self):
         """Test 1: POST /api/auth/register (instructor)"""
         payload = {
-            "email": "instructor@lms.test",
+            "email": "instructor@example.com",
             "name": "John Instructor",
             "password": "instructor123",
             "role": "instructor"
