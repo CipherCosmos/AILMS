@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for AI Course Generator
-Tests all backend endpoints according to the review request.
+Backend API Testing Script for Expanded LMS APIs
+Tests all backend endpoints according to the review request sequence 2.
 """
 
 import requests
 import json
 import sys
+import io
 from typing import Dict, Any, Optional
 
 # Backend URL from frontend/.env
@@ -18,6 +19,14 @@ class BackendTester:
         self.session = requests.Session()
         self.test_results = []
         self.created_course_id = None
+        self.instructor_token = None
+        self.student_token = None
+        self.instructor_user_id = None
+        self.student_user_id = None
+        self.assignment_id = None
+        self.submission_id = None
+        self.thread_id = None
+        self.file_id = None
         
     def log_test(self, test_name: str, success: bool, details: str = "", response_data: Any = None):
         """Log test results"""
