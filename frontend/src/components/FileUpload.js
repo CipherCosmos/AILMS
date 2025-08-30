@@ -148,7 +148,7 @@ function FileUpload({ onFileUploaded, multiple = false, accept = "*/*", maxSize 
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .file-upload {
           margin: 1rem 0;
         }

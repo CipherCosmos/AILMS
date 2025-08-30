@@ -114,10 +114,10 @@ function StudentDashboard({ me }) {
   const refresh = () => api.get(`/courses`).then(r => setCourses(r.data));
   useEffect(()=>{ refresh(); },[]);
   useEffect(()=>{ api.get(`/analytics/student`).then(r=>setAnalytics(r.data)).catch(()=>{/* ignore */}); },[]);
-  useEffect(()=>{ api.get(`/recommendations`).then(r=>setRecommendations(r.data)).catch(()=>{setRecommendations([])}); },[]);
+  useEffect(()=>{ api.get(`/courses/recommendations`).then(r=>setRecommendations(r.data)).catch(()=>{setRecommendations([])}); },[]);
   useEffect(()=>{ api.get(`/notifications`).then(r=>setNotifications(r.data)).catch(()=>{setNotifications([])}); },[]);
   useEffect(()=>{ api.get(`/my_submissions`).then(r=>setMySubmissions(r.data)).catch(()=>{setMySubmissions([])}); },[]);
-  useEffect(()=>{ api.get(`/learning_path`).then(r=>setLearningPath(r.data)).catch(()=>{setLearningPath(null)}); },[me]);
+  useEffect(()=>{ api.get(`/courses/learning_path`).then(r=>setLearningPath(r.data)).catch(()=>{setLearningPath(null)}); },[me]);
 
   const enroll = async (c) => { await api.post(`/courses/${c.id}/enroll`); refresh(); };
   const open = async (c) => {

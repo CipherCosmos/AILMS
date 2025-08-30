@@ -18,9 +18,11 @@ from routes.marketplace import marketplace_router
 from routes.wellbeing import wellbeing_router
 from routes.course_content import course_content_router
 from routes.career import career_router
+from routes.reviews import reviews_router
 from auth import auth_router
 import json
 from bson import ObjectId
+from utils import serialize_mongo_doc
 
 # Custom JSON encoder for MongoDB ObjectId
 class MongoJSONEncoder(json.JSONEncoder):
@@ -85,6 +87,7 @@ api.include_router(files_router, prefix="/files", tags=["files"])
 api.include_router(chat_router, tags=["chat"])
 api.include_router(discussions_router, tags=["discussions"])
 api.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+api.include_router(reviews_router, tags=["reviews"])
 api.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 api.include_router(profile_router, prefix="/profile", tags=["profile"])
 api.include_router(rbac_router, prefix="/rbac", tags=["rbac"])
@@ -117,7 +120,7 @@ async def websocket_test():
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],  # Allow frontend origins and all for development
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -130,12 +133,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
         await manager.connect(websocket)
         logger.info(f"WebSocket connected successfully for user: {user_id}")
-        await manager.send_personal_message(json.dumps({
-            "type": "connected",
-            "message": f"Connected to LMS WebSocket for user {user_id}",
-            "user_id": user_id,
-            "timestamp": str(datetime.utcnow())
-        }), websocket)
+        await manager.send_personal_message(f"Connected to LMS WebSocket for user {user_id}", websocket)
 
         while True:
             data = await websocket.receive_text()
@@ -159,8 +157,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         "timestamp": str(datetime.utcnow())
                     }), websocket)
             except json.JSONDecodeError:
-                # If not JSON, just echo back
-                await manager.send_personal_message(f"Echo: {data}", websocket)
+                # If not JSON, echo back as JSON
+                await manager.send_personal_message(json.dumps({
+                    "type": "echo_error",
+                    "message": f"Echo: {data}",
+                    "timestamp": str(datetime.utcnow())
+                }), websocket)
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for user: {user_id}")

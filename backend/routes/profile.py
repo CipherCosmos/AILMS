@@ -7,6 +7,7 @@ from models import UserProfile, Achievement, LearningStreak, UserPreferences
 from config import settings
 from bson import ObjectId
 import json
+from utils import serialize_mongo_doc
 
 # AI integrations
 try:
@@ -14,16 +15,25 @@ try:
 except Exception:
     genai = None
 
+
 def _get_ai():
     if genai is None:
-        raise HTTPException(status_code=500, detail="AI dependency not installed. Please install google-generativeai.")
+        raise HTTPException(
+            status_code=500,
+            detail="AI dependency not installed. Please install google-generativeai.",
+        )
     if not settings.gemini_api_key:
-        raise HTTPException(status_code=500, detail="No AI key configured. Set GEMINI_API_KEY in backend/.env")
+        raise HTTPException(
+            status_code=500,
+            detail="No AI key configured. Set GEMINI_API_KEY in backend/.env",
+        )
     genai.configure(api_key=settings.gemini_api_key)
     return genai.GenerativeModel(settings.default_llm_model)
 
+
 def _safe_json_extract(text: str):
     import json
+
     if not isinstance(text, str):
         text = str(text)
     try:
@@ -32,6 +42,7 @@ def _safe_json_extract(text: str):
         pass
     try:
         import re
+
         m = re.search(r"\{[\s\S]*\}", text)
         if m:
             return json.loads(m.group(0))
@@ -39,7 +50,9 @@ def _safe_json_extract(text: str):
         pass
     raise ValueError("Could not parse JSON from AI response")
 
+
 profile_router = APIRouter()
+
 
 # Profile Management Routes
 @profile_router.get("/profile")
@@ -52,9 +65,9 @@ async def get_user_profile(user=Depends(_current_user)):
         # Create default profile
         default_profile = UserProfile(user_id=user["id"])
         await db.user_profiles.insert_one(default_profile.dict())
-        return default_profile.dict()
+        return serialize_mongo_doc(default_profile.dict())
 
-    return profile
+    return serialize_mongo_doc(profile)
 
 
 @profile_router.put("/profile")
@@ -64,18 +77,25 @@ async def update_user_profile(profile_data: dict, user=Depends(_current_user)):
 
     # Validate profile data
     allowed_fields = [
-        "bio", "location", "website", "social_links", "skills",
-        "interests", "learning_goals", "preferred_learning_style",
-        "timezone", "language", "notifications_enabled", "privacy_settings"
+        "bio",
+        "location",
+        "website",
+        "social_links",
+        "skills",
+        "interests",
+        "learning_goals",
+        "preferred_learning_style",
+        "timezone",
+        "language",
+        "notifications_enabled",
+        "privacy_settings",
     ]
 
     update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
     update_data["updated_at"] = datetime.utcnow()
 
     await db.user_profiles.update_one(
-        {"user_id": user["id"]},
-        {"$set": update_data},
-        upsert=True
+        {"user_id": user["id"]}, {"$set": update_data}, upsert=True
     )
 
     return {"status": "updated", "message": "Profile updated successfully"}
@@ -103,7 +123,7 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(_current_user
     grid_in = fs_bucket.open_upload_stream_with_id(
         file_id,
         f"avatar_{user['id']}_{file.filename}",
-        metadata={"user_id": user["id"], "content_type": file.content_type}
+        metadata={"user_id": user["id"], "content_type": file.content_type},
     )
 
     while True:
@@ -118,7 +138,7 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(_current_user
     await db.user_profiles.update_one(
         {"user_id": user["id"]},
         {"$set": {"avatar_url": avatar_url, "avatar_file_id": file_id}},
-        upsert=True
+        upsert=True,
     )
 
     return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}
@@ -128,8 +148,12 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(_current_user
 async def get_user_achievements(user=Depends(_current_user)):
     """Get user's achievements"""
     db = get_database()
-    achievements = await db.achievements.find({"user_id": user["id"]}).sort("earned_at", -1).to_list(100)
-    return achievements
+    achievements = (
+        await db.achievements.find({"user_id": user["id"]})
+        .sort("earned_at", -1)
+        .to_list(100)
+    )
+    return serialize_mongo_doc(achievements)
 
 
 @profile_router.get("/streak")
@@ -142,9 +166,9 @@ async def get_learning_streak(user=Depends(_current_user)):
         # Create default streak
         default_streak = LearningStreak(user_id=user["id"])
         await db.learning_streaks.insert_one(default_streak.dict())
-        return default_streak.dict()
+        return serialize_mongo_doc(default_streak.dict())
 
-    return streak
+    return serialize_mongo_doc(streak)
 
 
 @profile_router.post("/streak/update")
@@ -159,7 +183,11 @@ async def update_learning_streak(user=Depends(_current_user)):
 
     last_activity = streak.get("last_activity_date")
     if last_activity:
-        last_activity_date = last_activity.date() if hasattr(last_activity, 'date') else datetime.fromisoformat(last_activity).date()
+        last_activity_date = (
+            last_activity.date()
+            if hasattr(last_activity, "date")
+            else datetime.fromisoformat(last_activity).date()
+        )
     else:
         last_activity_date = None
 
@@ -170,7 +198,9 @@ async def update_learning_streak(user=Depends(_current_user)):
     if last_activity_date == today - timedelta(days=1):
         # Continue streak
         streak["current_streak"] += 1
-        streak["longest_streak"] = max(streak["longest_streak"], streak["current_streak"])
+        streak["longest_streak"] = max(
+            streak["longest_streak"], streak["current_streak"]
+        )
     elif last_activity_date and last_activity_date < today - timedelta(days=1):
         # Streak broken
         streak["current_streak"] = 1
@@ -184,12 +214,10 @@ async def update_learning_streak(user=Depends(_current_user)):
     streak["total_study_days"] += 1
 
     await db.learning_streaks.update_one(
-        {"user_id": user["id"]},
-        {"$set": streak},
-        upsert=True
+        {"user_id": user["id"]}, {"$set": streak}, upsert=True
     )
 
-    return {"status": "updated", "streak": streak}
+    return {"status": "updated", "streak": serialize_mongo_doc(streak)}
 
 
 @profile_router.get("/preferences")
@@ -202,7 +230,7 @@ async def get_user_preferences(user=Depends(_current_user)):
         # Create default preferences
         default_prefs = UserPreferences(user_id=user["id"])
         await db.user_preferences.insert_one(default_prefs.dict())
-        return default_prefs.dict()
+        return serialize_mongo_doc(default_prefs.dict())
 
     # Convert ObjectId to string for JSON serialization
     if "_id" in preferences:
@@ -210,7 +238,7 @@ async def get_user_preferences(user=Depends(_current_user)):
     if "user_id" in preferences:
         preferences["user_id"] = str(preferences["user_id"])
 
-    return preferences
+    return serialize_mongo_doc(preferences)
 
 
 @profile_router.put("/preferences")
@@ -220,16 +248,19 @@ async def update_user_preferences(preferences: dict, user=Depends(_current_user)
 
     # Validate preferences data
     allowed_fields = [
-        "theme", "email_notifications", "study_reminders",
-        "reminder_time", "dashboard_layout", "quick_actions", "accessibility"
+        "theme",
+        "email_notifications",
+        "study_reminders",
+        "reminder_time",
+        "dashboard_layout",
+        "quick_actions",
+        "accessibility",
     ]
 
     update_data = {k: v for k, v in preferences.items() if k in allowed_fields}
 
     await db.user_preferences.update_one(
-        {"user_id": user["id"]},
-        {"$set": update_data},
-        upsert=True
+        {"user_id": user["id"]}, {"$set": update_data}, upsert=True
     )
 
     return {"status": "updated", "message": "Preferences updated successfully"}
@@ -241,15 +272,23 @@ async def get_user_stats(user=Depends(_current_user)):
     db = get_database()
 
     # Get various stats
-    enrolled_courses = await db.courses.count_documents({"enrolled_user_ids": user["id"]})
-    completed_courses = await db.course_progress.count_documents({"user_id": user["id"], "completed": True})
+    enrolled_courses = await db.courses.count_documents(
+        {"enrolled_user_ids": user["id"]}
+    )
+    completed_courses = await db.course_progress.count_documents(
+        {"user_id": user["id"], "completed": True}
+    )
     total_submissions = await db.submissions.count_documents({"user_id": user["id"]})
 
     # Calculate average grade
     submissions = await db.submissions.find({"user_id": user["id"]}).to_list(100)
     avg_grade = 0
     if submissions:
-        grades = [s.get("ai_grade", {}).get("score", 0) for s in submissions if s.get("ai_grade")]
+        grades = [
+            s.get("ai_grade", {}).get("score", 0)
+            for s in submissions
+            if s.get("ai_grade")
+        ]
         avg_grade = sum(grades) / len(grades) if grades else 0
 
     # Get streak info
@@ -260,22 +299,30 @@ async def get_user_stats(user=Depends(_current_user)):
     achievements_count = await db.achievements.count_documents({"user_id": user["id"]})
 
     # Get total study time (estimated from activities)
-    recent_activities = await db.chats.count_documents({
-        "session_id": {"$regex": user["id"]},
-        "created_at": {"$gte": datetime.utcnow() - timedelta(days=30)}
-    })
+    recent_activities = await db.chats.count_documents(
+        {
+            "session_id": {"$regex": user["id"]},
+            "created_at": {"$gte": datetime.utcnow() - timedelta(days=30)},
+        }
+    )
 
     return {
         "enrolled_courses": enrolled_courses,
         "completed_courses": completed_courses,
-        "completion_rate": (completed_courses / enrolled_courses * 100) if enrolled_courses > 0 else 0,
+        "completion_rate": (
+            (completed_courses / enrolled_courses * 100) if enrolled_courses > 0 else 0
+        ),
         "total_submissions": total_submissions,
         "average_grade": round(avg_grade, 1),
         "current_streak": current_streak,
         "achievements_count": achievements_count,
         "estimated_study_sessions": recent_activities,
-        "level": min(100, completed_courses * 10 + achievements_count),  # Simple leveling system
-        "points": completed_courses * 100 + achievements_count * 50 + total_submissions * 10
+        "level": min(
+            100, completed_courses * 10 + achievements_count
+        ),  # Simple leveling system
+        "points": completed_courses * 100
+        + achievements_count * 50
+        + total_submissions * 10,
     }
 
 
@@ -301,29 +348,35 @@ async def get_public_profile(user_id: str, current_user=Depends(_current_user)):
     achievements = await db.achievements.find({"user_id": user_id}).to_list(10)
 
     # Get completed courses (if privacy allows)
-    show_progress = profile.get("privacy_settings", {}).get("show_progress", True) if profile else True
+    show_progress = (
+        profile.get("privacy_settings", {}).get("show_progress", True)
+        if profile
+        else True
+    )
     completed_courses = []
     if show_progress or current_user["id"] == user_id:
-        progress_data = await db.course_progress.find({"user_id": user_id, "completed": True}).to_list(20)
+        progress_data = await db.course_progress.find(
+            {"user_id": user_id, "completed": True}
+        ).to_list(20)
         for progress in progress_data:
             course = await db.courses.find_one({"_id": progress["course_id"]})
             if course:
-                completed_courses.append({
-                    "id": course["_id"],
-                    "title": course["title"],
-                    "completed_at": progress.get("completed_at")
-                })
+                completed_courses.append(
+                    {
+                        "id": course["_id"],
+                        "title": course["title"],
+                        "completed_at": progress.get("completed_at"),
+                    }
+                )
 
     return {
-        "user": {
-            "id": user["_id"],
-            "name": user["name"],
-            "role": user["role"]
-        },
-        "profile": profile or {},
-        "achievements": achievements,
-        "completed_courses": completed_courses,
-        "stats": await get_user_stats({"id": user_id})  # This will be called with the target user
+        "user": {"id": str(user["_id"]), "name": user["name"], "role": user["role"]},
+        "profile": serialize_mongo_doc(profile) or {},
+        "achievements": serialize_mongo_doc(achievements),
+        "completed_courses": serialize_mongo_doc(completed_courses),
+        "stats": await get_user_stats(
+            {"id": user_id}
+        ),  # This will be called with the target user
     }
 
 
@@ -339,12 +392,12 @@ async def unlock_achievement(achievement_data: dict, user=Depends(_current_user)
         description=achievement_data.get("description"),
         icon=achievement_data.get("icon", "🏆"),
         points=achievement_data.get("points", 0),
-        metadata=achievement_data.get("metadata", {})
+        metadata=achievement_data.get("metadata", {}),
     )
 
     await db.achievements.insert_one(achievement.dict())
 
-    return {"status": "unlocked", "achievement": achievement.dict()}
+    return {"status": "unlocked", "achievement": serialize_mongo_doc(achievement.dict())}
 
 
 # AI-Powered Profile Enhancement
@@ -362,10 +415,23 @@ async def enhance_profile_with_ai(user=Depends(_current_user)):
     # Build context for AI
     context = {
         "current_profile": profile or {},
-        "enrolled_courses": [{"title": c["title"], "difficulty": c.get("difficulty")} for c in courses],
+        "enrolled_courses": [
+            {"title": c["title"], "difficulty": c.get("difficulty")} for c in courses
+        ],
         "completed_courses": len([p for p in progress if p.get("completed")]),
         "total_submissions": len(submissions),
-        "average_grade": sum([s.get("ai_grade", {}).get("score", 0) for s in submissions if s.get("ai_grade")]) / len([s for s in submissions if s.get("ai_grade")]) if submissions else 0
+        "average_grade": (
+            sum(
+                [
+                    s.get("ai_grade", {}).get("score", 0)
+                    for s in submissions
+                    if s.get("ai_grade")
+                ]
+            )
+            / len([s for s in submissions if s.get("ai_grade")])
+            if submissions
+            else 0
+        ),
     }
 
     # AI prompt for profile enhancement
@@ -393,17 +459,27 @@ async def enhance_profile_with_ai(user=Depends(_current_user)):
         return {
             "status": "success",
             "suggestions": suggestions,
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         return {
             "status": "error",
             "message": f"AI enhancement failed: {str(e)}",
             "fallback_suggestions": {
-                "skills_suggestions": ["Problem Solving", "Critical Thinking", "Communication"],
-                "goals_suggestions": ["Complete 5 more courses this year", "Achieve 90%+ average grade"],
-                "course_recommendations": ["Advanced topics in your field", "Practical application courses"]
-            }
+                "skills_suggestions": [
+                    "Problem Solving",
+                    "Critical Thinking",
+                    "Communication",
+                ],
+                "goals_suggestions": [
+                    "Complete 5 more courses this year",
+                    "Achieve 90%+ average grade",
+                ],
+                "course_recommendations": [
+                    "Advanced topics in your field",
+                    "Practical application courses",
+                ],
+            },
         }
 
 
@@ -425,8 +501,7 @@ async def delete_user_account(user=Depends(_current_user)):
 
     # Remove user from all courses
     await db.courses.update_many(
-        {"enrolled_user_ids": user_id},
-        {"$pull": {"enrolled_user_ids": user_id}}
+        {"enrolled_user_ids": user_id}, {"$pull": {"enrolled_user_ids": user_id}}
     )
 
     # Delete user's course progress
@@ -444,4 +519,7 @@ async def delete_user_account(user=Depends(_current_user)):
     # Delete user's chat history (by session_id pattern)
     await db.chats.delete_many({"session_id": {"$regex": user_id}})
 
-    return {"status": "deleted", "message": "Account and all associated data have been permanently deleted"}
+    return {
+        "status": "deleted",
+        "message": "Account and all associated data have been permanently deleted",
+    }

@@ -341,7 +341,7 @@ function EnhancedCourseViewer({ course, onProgressUpdate, onQuizSubmit }) {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .enhanced-course-viewer {
           display: flex;
           flex-direction: column;

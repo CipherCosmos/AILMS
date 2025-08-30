@@ -45,13 +45,33 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 # Course models
+class MediaAttachment(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    filename: str
+    file_type: str  # pdf, video, audio, image, document
+    file_size: int
+    url: str
+    thumbnail_url: Optional[str] = None
+    uploaded_by: str
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Dict[str, Any] = {}
+
 class CourseLesson(BaseModel):
     id: str = Field(default_factory=_uuid)
     title: str
     content: str = ""
+    content_type: str = "text"  # text, video, interactive, quiz
     resources: List[str] = []  # file_ids
+    media_attachments: List[MediaAttachment] = []
     transcript_text: Optional[str] = None
     summary: Optional[str] = None
+    estimated_time: int = 30  # minutes
+    difficulty_level: str = "intermediate"
+    learning_objectives: List[str] = []
+    prerequisites: List[str] = []
+    tags: List[str] = []
+    is_published: bool = True
+    order_index: int = 0
 
 class QuizOption(BaseModel):
     text: str
@@ -926,3 +946,141 @@ class AdaptiveLearningProfile(BaseModel):
     performance_history: List[Dict[str, Any]] = []
     recommended_adjustments: Dict[str, Any] = {}
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Course Reviews and Ratings
+class CourseReview(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    course_id: str
+    user_id: str
+    rating: int = Field(ge=1, le=5)
+    title: str
+    content: str
+    pros: List[str] = []
+    cons: List[str] = []
+    helpful_votes: int = 0
+    is_verified_purchase: bool = False
+    is_instructor_response: bool = False
+    instructor_response: Optional[str] = None
+    response_date: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ReviewVote(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    review_id: str
+    user_id: str
+    vote_type: str  # helpful, not_helpful
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Enhanced Discussion/Q&A System
+class CourseDiscussion(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    course_id: str
+    lesson_id: Optional[str] = None
+    user_id: str
+    title: str
+    content: str
+    discussion_type: str = "question"  # question, discussion, announcement, clarification
+    tags: List[str] = []
+    is_pinned: bool = False
+    is_locked: bool = False
+    is_featured: bool = False
+    view_count: int = 0
+    upvote_count: int = 0
+    reply_count: int = 0
+    last_reply_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DiscussionPost(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    discussion_id: str
+    user_id: str
+    content: str
+    is_instructor_reply: bool = False
+    is_solution: bool = False
+    upvote_count: int = 0
+    parent_reply_id: Optional[str] = None  # for nested replies
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DiscussionVote(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    discussion_id: Optional[str] = None
+    reply_id: Optional[str] = None
+    user_id: str
+    vote_type: str  # upvote, downvote
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Enhanced Analytics Models
+class CourseAnalytics(BaseModel):
+    course_id: str
+    total_enrollments: int = 0
+    active_students: int = 0
+    completion_rate: float = 0.0
+    average_rating: float = 0.0
+    total_reviews: int = 0
+    discussion_count: int = 0
+    average_time_spent: float = 0.0  # minutes
+    popular_lessons: List[Dict[str, Any]] = []
+    student_demographics: Dict[str, Any] = {}
+    engagement_metrics: Dict[str, Any] = {}
+    performance_trends: List[Dict[str, Any]] = []
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+class StudentAnalytics(BaseModel):
+    user_id: str
+    course_id: str
+    lessons_completed: int = 0
+    total_time_spent: int = 0  # minutes
+    quiz_scores: List[Dict[str, Any]] = []
+    discussion_participation: int = 0
+    last_activity: Optional[datetime] = None
+    progress_percentage: float = 0.0
+    predicted_completion_date: Optional[datetime] = None
+    learning_pattern: str = ""
+    strengths: List[str] = []
+    areas_for_improvement: List[str] = []
+    personalized_recommendations: List[str] = []
+
+
+# Media Management
+class MediaLibrary(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    tenant_id: Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    media_type: str  # image, video, audio, document, pdf
+    file_path: str
+    file_size: int
+    mime_type: str
+    thumbnail_path: Optional[str] = None
+    tags: List[str] = []
+    uploaded_by: str
+    is_public: bool = False
+    usage_count: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# AI Content Generation
+class ContentGenerationRequest(BaseModel):
+    content_type: str  # lesson, quiz, assignment, explanation
+    topic: str
+    target_audience: str
+    difficulty_level: str
+    length_requirements: Optional[str] = None
+    specific_instructions: Optional[str] = None
+    include_examples: bool = True
+    include_assessment: bool = False
+
+class GeneratedContent(BaseModel):
+    id: str = Field(default_factory=_uuid)
+    request_id: str
+    content_type: str
+    generated_content: str
+    metadata: Dict[str, Any] = {}
+    quality_score: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -371,7 +371,8 @@ function SettingsPage({ me, onProfileUpdate }) {
         </div>
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .settings-page {
           min-height: 100vh;
           background: #f8f9fa;
@@ -680,7 +681,7 @@ function SettingsPage({ me, onProfileUpdate }) {
             font-size: 0.9rem;
           }
         }
-      `}</style>
+      `}} />
     </div>
   );
 }

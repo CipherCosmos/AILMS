@@ -1,10 +1,15 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://127.0.0.1:8000';
 const API = `${BACKEND_URL}/api`;
 
 // Axios instance with auth
-const api = axios.create({ baseURL: API });
+const api = axios.create({
+  baseURL: API,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 let isRefreshing = false;
 let failedQueue = [];
@@ -23,7 +28,10 @@ const processQueue = (error, token = null) => {
 
 api.interceptors.request.use((config) => {
   const t = localStorage.getItem("access_token");
-  if (t) config.headers.Authorization = `Bearer ${t}`;
+  if (t) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${t}`;
+  }
   return config;
 });
 

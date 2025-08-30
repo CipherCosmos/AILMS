@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
 import Auth from "./components/Auth";
 import ProfileDropdown from "./components/ProfileDropdown";
 import InstructorDashboard from "./pages/InstructorDashboard";
+import CourseEditor from "./pages/CourseEditor";
+import CourseAnalytics from "./pages/CourseAnalytics";
+import CourseReviews from "./pages/CourseReviews";
 import StudentDashboard from "./pages/StudentDashboard";
 import AuditorDashboard from "./pages/AuditorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -16,9 +20,9 @@ import SettingsPage from "./pages/SettingsPage";
 import { useWebSocket } from "./components/WebSocketManager";
 import NotificationSystem from "./components/NotificationSystem";
 
-function App() {
+function AppContent() {
   const [me, setMe] = useState(null);
-  const [currentPage, setCurrentPage] = useState("dashboard");
+  const navigate = useNavigate();
   const { addListener } = useWebSocket(me?.id);
 
   useEffect(()=>{
@@ -68,45 +72,7 @@ function App() {
   const logout = () => {
     localStorage.clear();
     setMe(null);
-    setCurrentPage("dashboard");
-  };
-
-  const renderCurrentPage = () => {
-    if (!me) return <Auth onAuthed={setMe} />;
-
-    switch (currentPage) {
-      case "dashboard":
-        if (me.role === "admin") return <AdminDashboard />;
-        if (me.role === "instructor") return <InstructorDashboard me={me} />;
-        if (me.role === "student") return <StudentDashboard me={me} />;
-        if (me.role === "auditor") return <AuditorDashboard />;
-        if (me.role === "parent") return <ParentPortal />;
-        return <StudentDashboard me={me} />;
-
-      case "wellbeing":
-        return <WellbeingDashboard />;
-
-      case "marketplace":
-        return <Marketplace />;
-
-      case "assessment":
-        return <AssessmentCenter />;
-
-      case "gamification":
-        return <GamificationHub />;
-
-      case "parent":
-        return <ParentPortal />;
-
-      case "notifications":
-        return <NotificationsPage />;
-
-      case "settings":
-        return <SettingsPage me={me} onProfileUpdate={setMe} />;
-
-      default:
-        return <StudentDashboard me={me} />;
-    }
+    navigate("/");
   };
 
   const getNavigationItems = () => {
@@ -142,37 +108,67 @@ function App() {
     return [...commonItems, ...(roleSpecificItems[me.role] || [])];
   };
 
+  if (!me) {
+    return <Auth onAuthed={setMe} />;
+  }
+
   return (
     <div className="App">
-      {me && (
-        <nav className="main-navigation">
-          <div className="nav-container">
-            <div className="nav-brand">
-              <h1 className="logo">AI LMS</h1>
-            </div>
-
-            <div className="nav-items">
-              {getNavigationItems().map(item => (
-                <button
-                  key={item.id}
-                  className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(item.id)}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-label">{item.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="nav-user">
-              <ProfileDropdown user={me} onLogout={logout} onNavigate={setCurrentPage} />
-            </div>
+      <nav className="main-navigation">
+        <div className="nav-container">
+          <div className="nav-brand">
+            <h1 className="logo">AI LMS</h1>
           </div>
-        </nav>
-      )}
+
+          <div className="nav-items">
+            {getNavigationItems().map(item => (
+              <button
+                key={item.id}
+                className="nav-item"
+                onClick={() => navigate(`/${item.id}`)}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-label">{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="nav-user">
+            <ProfileDropdown user={me} onLogout={logout} onNavigate={(page) => navigate(`/${page}`)} />
+          </div>
+        </div>
+      </nav>
 
       <main className="main-content">
-        {renderCurrentPage()}
+        <Routes>
+          <Route path="/" element={
+            me.role === "admin" ? <AdminDashboard /> :
+            me.role === "instructor" ? <InstructorDashboard me={me} /> :
+            me.role === "student" ? <StudentDashboard me={me} /> :
+            me.role === "auditor" ? <AuditorDashboard /> :
+            me.role === "parent" ? <ParentPortal /> :
+            <StudentDashboard me={me} />
+          } />
+          <Route path="/dashboard" element={
+            me.role === "admin" ? <AdminDashboard /> :
+            me.role === "instructor" ? <InstructorDashboard me={me} /> :
+            me.role === "student" ? <StudentDashboard me={me} /> :
+            me.role === "auditor" ? <AuditorDashboard /> :
+            me.role === "parent" ? <ParentPortal /> :
+            <StudentDashboard me={me} />
+          } />
+          <Route path="/instructor" element={<InstructorDashboard me={me} />} />
+          <Route path="/instructor/course/:courseId/edit" element={<CourseEditor me={me} />} />
+          <Route path="/instructor/course/:courseId/analytics" element={<CourseAnalytics me={me} />} />
+          <Route path="/instructor/course/:courseId/reviews" element={<CourseReviews me={me} />} />
+          <Route path="/wellbeing" element={<WellbeingDashboard />} />
+          <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/assessment" element={<AssessmentCenter />} />
+          <Route path="/gamification" element={<GamificationHub />} />
+          <Route path="/parent" element={<ParentPortal />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/settings" element={<SettingsPage me={me} onProfileUpdate={setMe} />} />
+        </Routes>
       </main>
 
       <NotificationSystem />
@@ -180,6 +176,14 @@ function App() {
         Backend via REACT_APP_BACKEND_URL • All API routes under /api
       </footer>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

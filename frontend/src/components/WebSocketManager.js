@@ -58,13 +58,23 @@ class WebSocketManager {
           const data = JSON.parse(event.data);
           this.notifyListeners(data.type || 'message', data);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-          // Handle non-JSON messages gracefully
-          this.notifyListeners('raw_message', {
-            type: 'raw_message',
-            data: event.data,
-            timestamp: new Date().toISOString()
-          });
+          // Handle connection messages and other non-JSON messages gracefully
+          if (event.data?.startsWith('Connected to LMS WebSocket')) {
+            // This is a connection confirmation message
+            this.notifyListeners('connection', {
+              status: 'connected',
+              message: event.data,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            console.warn('Unexpected non-JSON message (first 100 chars):', event.data?.substring(0, 100));
+            // Handle other non-JSON messages gracefully
+            this.notifyListeners('raw_message', {
+              type: 'raw_message',
+              data: event.data,
+              timestamp: new Date().toISOString()
+            });
+          }
         }
       };
 

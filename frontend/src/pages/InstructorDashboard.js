@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import useSessionId from "../hooks/useSessionId";
 import EnhancedCourseViewer from "../components/EnhancedCourseViewer";
 import EnhancedChat from "../components/EnhancedChat";
 
 function CourseListItem({ course, me, refresh }) {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState("overview"); // overview, content, chat, students
   const sessionId = useSessionId(course.id);
   const [assignments, setAssignments] = useState([]);
@@ -12,8 +14,11 @@ function CourseListItem({ course, me, refresh }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentProgress, setStudentProgress] = useState(null);
   const [aiAnalytics, setAiAnalytics] = useState(null);
+  const [chat, setChat] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [sending, setSending] = useState(false);
 
-  useEffect(()=>{ api.get(`/courses/${course.id}/assignments`).then(r=>setAssignments(r.data)); },[course.id]);
+  useEffect(() => { api.get(`/courses/${course.id}/assignments`).then(r => setAssignments(r.data)); }, [course.id]);
 
   const send = async () => {
     if (!chatInput.trim()) return;
@@ -54,9 +59,14 @@ function CourseListItem({ course, me, refresh }) {
 
   const editCourse = async () => {
     const newTitle = prompt("New title", course.title);
-    if (newTitle) {
-      await api.put(`/courses/${course.id}`, { title: newTitle });
-      alert("Course updated.");
+    if (newTitle && newTitle !== course.title) {
+      try {
+        await api.put(`/courses/${course.id}`, { title: newTitle });
+        alert("Course updated successfully!");
+        refresh(); // Refresh the course list
+      } catch (error) {
+        alert("Error updating course. Please try again.");
+      }
     }
   };
 
@@ -104,6 +114,32 @@ function CourseListItem({ course, me, refresh }) {
   const getAiAnalytics = async () => {
     const r = await api.get(`/analytics/ai/course/${course.id}`);
     setAiAnalytics(r.data);
+  };
+
+  const viewCourseAnalytics = async () => {
+    try {
+      const response = await api.get(`/analytics/ai/course/${course.id}`);
+      const analytics = response.data;
+
+      // Display analytics in a modal or alert
+      const analyticsText = `
+Course Analytics for "${course.title}":
+
+📊 Enrollment: ${analytics.enrollment_trends || course.enrolled_user_ids?.length || 0} students
+📈 Completion Rate: ${analytics.completion_rate?.toFixed(1) || 'N/A'}%
+🎯 Average Progress: ${analytics.average_progress?.toFixed(1) || 'N/A'}%
+📝 Submission Rate: ${analytics.submission_rate?.toFixed(1) || 'N/A'}%
+
+At-Risk Students: ${analytics.at_risk_students?.length || 0}
+Performance Insights:
+${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') || 'No insights available'}
+      `;
+
+      alert(analyticsText);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      alert("Error loading course analytics. Please try again.");
+    }
   };
 
   const aiGrade = async (aid) => {
@@ -263,7 +299,7 @@ function CourseListItem({ course, me, refresh }) {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .enhanced-course-list-item {
           background: rgba(255, 255, 255, 0.9);
           backdrop-filter: blur(20px);
@@ -551,6 +587,7 @@ function CourseListItem({ course, me, refresh }) {
 }
 
 function InstructorDashboard({ me }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("courses");
   const [title, setTitle] = useState("");
   const [audience, setAudience] = useState("Beginners");
@@ -608,6 +645,45 @@ function InstructorDashboard({ me }) {
     }
   };
 
+  const editCourse = async (course) => {
+    const newTitle = prompt("Edit course title:", course.title);
+    if (newTitle && newTitle !== course.title) {
+      try {
+        await api.put(`/courses/${course.id}`, { title: newTitle });
+        refresh();
+        alert("Course title updated successfully!");
+      } catch (error) {
+        alert("Error updating course title");
+      }
+    }
+  };
+
+  const viewCourseAnalytics = async (course) => {
+    try {
+      const response = await api.get(`/analytics/ai/course/${course.id}`);
+      const analytics = response.data;
+
+      // Display analytics in a modal or alert
+      const analyticsText = `
+Course Analytics for "${course.title}":
+
+📊 Enrollment: ${analytics.enrollment_trends || course.enrolled_user_ids?.length || 0} students
+📈 Completion Rate: ${analytics.completion_rate?.toFixed(1) || 'N/A'}%
+🎯 Average Progress: ${analytics.average_progress?.toFixed(1) || 'N/A'}%
+📝 Submission Rate: ${analytics.submission_rate?.toFixed(1) || 'N/A'}%
+
+At-Risk Students: ${analytics.at_risk_students?.length || 0}
+Performance Insights:
+${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') || 'No insights available'}
+      `;
+
+      alert(analyticsText);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      alert("Error loading course analytics. Please try again.");
+    }
+  };
+
   return (
     <div className="instructor-dashboard">
       <div className="instructor-header">
@@ -657,7 +733,7 @@ function InstructorDashboard({ me }) {
                 <h3>Total Courses</h3>
                 <div className="stat-number">{courses.length}</div>
                 <div className="stat-detail">
-                  {courses.filter(c => c.published).length} Published<br/>
+                  {courses.filter(c => c.published).length} Published<br />
                   {courses.filter(c => !c.published).length} Drafts
                 </div>
               </div>
@@ -701,7 +777,7 @@ function InstructorDashboard({ me }) {
                   <div className="action-title">View Analytics</div>
                   <div className="action-desc">Track student progress</div>
                 </button>
-                <button className="action-card" onClick={() => {/* Announcements */}}>
+                <button className="action-card" onClick={() => {/* Announcements */ }}>
                   <div className="action-icon">📢</div>
                   <div className="action-title">Announcements</div>
                   <div className="action-desc">Send course updates</div>
@@ -745,7 +821,7 @@ function InstructorDashboard({ me }) {
                   </div>
 
                   <div className="course-actions">
-                    <button className="btn small" onClick={() => {/* Edit course */}}>
+                    <button className="btn small" onClick={() => navigate(`/instructor/course/${course.id}/edit`)}>
                       Edit
                     </button>
                     {!course.published && (
@@ -753,8 +829,11 @@ function InstructorDashboard({ me }) {
                         Publish
                       </button>
                     )}
-                    <button className="btn secondary small" onClick={() => {/* View analytics */}}>
+                    <button className="btn secondary small" onClick={() => viewCourseAnalytics(course)}>
                       Analytics
+                    </button>
+                    <button className="btn secondary small" onClick={() => navigate(`/instructor/course/${course.id}/reviews`)}>
+                      Reviews & Q&A
                     </button>
                   </div>
                 </div>
@@ -884,7 +963,7 @@ function InstructorDashboard({ me }) {
                 <input
                   type="text"
                   value={courseForm.title}
-                  onChange={(e) => setCourseForm({...courseForm, title: e.target.value})}
+                  onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
                   required
                 />
               </div>
@@ -894,7 +973,7 @@ function InstructorDashboard({ me }) {
                   <label>Audience</label>
                   <select
                     value={courseForm.audience}
-                    onChange={(e) => setCourseForm({...courseForm, audience: e.target.value})}
+                    onChange={(e) => setCourseForm({ ...courseForm, audience: e.target.value })}
                   >
                     <option value="Beginners">Beginners</option>
                     <option value="Intermediate">Intermediate</option>
@@ -907,7 +986,7 @@ function InstructorDashboard({ me }) {
                   <label>Difficulty</label>
                   <select
                     value={courseForm.difficulty}
-                    onChange={(e) => setCourseForm({...courseForm, difficulty: e.target.value})}
+                    onChange={(e) => setCourseForm({ ...courseForm, difficulty: e.target.value })}
                   >
                     <option value="beginner">Beginner</option>
                     <option value="intermediate">Intermediate</option>
@@ -920,7 +999,7 @@ function InstructorDashboard({ me }) {
                 <label>Description</label>
                 <textarea
                   value={courseForm.description}
-                  onChange={(e) => setCourseForm({...courseForm, description: e.target.value})}
+                  onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
                   rows={4}
                   placeholder="Describe what students will learn..."
                 />
@@ -939,7 +1018,7 @@ function InstructorDashboard({ me }) {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .instructor-dashboard {
           min-height: 100vh;
           background: #f8f9fa;

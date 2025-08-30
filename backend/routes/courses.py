@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List
+from fastapi import APIRouter, HTTPException, Depends, Body
+from typing import List, Optional
 import json
 import re
 import math
@@ -22,6 +22,9 @@ from models import (
 from config import settings
 import uuid
 from datetime import datetime
+from utils import serialize_mongo_doc
+from bson import ObjectId
+from pydantic import BaseModel
 
 # AI integrations
 try:
@@ -146,7 +149,7 @@ async def get_course(cid: str, user=Depends(_current_user)):
 @courses_router.put("/{cid}", response_model=Course)
 async def update_course(cid: str, body: CourseUpdate, user=Depends(_current_user)):
     doc = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or doc.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or doc.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     changes = {k: v for k, v in body.dict().items() if v is not None}
     await _update_one("courses", {"_id": cid}, changes)
@@ -167,7 +170,7 @@ async def enroll_course(cid: str, user=Depends(_current_user)):
 @courses_router.post("/{cid}/lessons", response_model=Course)
 async def add_lesson(cid: str, body: LessonCreate, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     lesson = CourseLesson(title=body.title, content=body.content)
     db = get_database()
@@ -260,7 +263,7 @@ async def generate_quiz_for_lesson(lesson_id: str, user=Depends(_current_user)):
     course = await db.courses.find_one({"lessons.id": lesson_id})
     if not course:
         raise HTTPException(404, "Lesson not found")
-    if not (user["role"] in ["admin"] or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     lesson = next(
         (l for l in course.get("lessons", []) if l.get("id") == lesson_id), None
@@ -322,7 +325,7 @@ async def upload_transcript(
     course = await db.courses.find_one({"lessons.id": lesson_id})
     if not course:
         raise HTTPException(404, "Lesson not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     await db.courses.update_one(
         {"_id": course["_id"], "lessons.id": lesson_id},
@@ -360,8 +363,13 @@ async def summarize_lesson(lesson_id: str, user=Depends(_current_user)):
 
 
 # Progress tracking
+class ProgressUpdate(BaseModel):
+    lesson_id: str
+    completed: bool
+    quiz_score: Optional[int] = None
+
 @courses_router.post("/{cid}/progress")
-async def update_progress(cid: str, lesson_id: str, completed: bool, user=Depends(_current_user)):
+async def update_progress(cid: str, progress_data: dict, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
     if user["id"] not in course.get("enrolled_user_ids", []):
         raise HTTPException(403, "Not enrolled in course")
@@ -371,6 +379,10 @@ async def update_progress(cid: str, lesson_id: str, completed: bool, user=Depend
     if not progress_doc:
         progress_doc = {"course_id": cid, "user_id": user["id"], "lessons_progress": []}
 
+    lesson_id = progress_data.get("lesson_id")
+    completed = progress_data.get("completed", False)
+    quiz_score = progress_data.get("quiz_score")
+
     lesson_progress = next((lp for lp in progress_doc["lessons_progress"] if lp["lesson_id"] == lesson_id), None)
     if not lesson_progress:
         lesson_progress = {"lesson_id": lesson_id, "completed": False}
@@ -379,6 +391,12 @@ async def update_progress(cid: str, lesson_id: str, completed: bool, user=Depend
     if completed and not lesson_progress["completed"]:
         lesson_progress["completed"] = True
         lesson_progress["completed_at"] = datetime.utcnow()
+
+    # Handle quiz score
+    if quiz_score is not None:
+        lesson_progress["quiz_score"] = quiz_score
+        lesson_progress["quiz_completed"] = True
+        lesson_progress["quiz_completed_at"] = datetime.utcnow()
 
     # Calculate overall progress
     total_lessons = len(course.get("lessons", []))
@@ -440,8 +458,137 @@ async def generate_certificate(cid: str, user=Depends(_current_user)):
     return certificate_data
 
 
+# AI-Powered Recommendations
+@courses_router.get("/basic_recommendations")
+async def get_basic_recommendations(user=Depends(_current_user)):
+    """Get personalized course recommendations for the user"""
+    db = get_database()
+
+    # Get user's current courses and progress
+    user_courses = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(10)
+    user_progress = await db.course_progress.find({"user_id": user["id"]}).to_list(10)
+
+    # Get user's profile and preferences
+    profile = await db.user_profiles.find_one({"user_id": user["id"]})
+    preferences = await db.user_preferences.find_one({"user_id": user["id"]})
+
+    # Simple recommendation logic based on completed courses and interests
+    completed_course_ids = [p["course_id"] for p in user_progress if p.get("completed")]
+    enrolled_course_ids = [str(c["_id"]) for c in user_courses]
+
+    # Find courses user hasn't enrolled in
+    all_courses = await db.courses.find({
+        "_id": {"$nin": [ObjectId(cid) for cid in enrolled_course_ids if cid]},
+        "published": True
+    }).to_list(20)
+
+    # Simple scoring based on difficulty and interests
+    user_interests = (profile.get("interests", []) if profile else []) + (preferences.get("interests", []) if preferences else [])
+    recommendations = []
+
+    for course in all_courses[:10]:
+        score = 0
+        # Score based on interests match
+        course_title_lower = course.get("title", "").lower()
+        course_audience = course.get("audience", "").lower()
+
+        for interest in user_interests:
+            if interest.lower() in course_title_lower or interest.lower() in course_audience:
+                score += 10
+
+        # Score based on difficulty progression
+        if completed_course_ids:
+            # Prefer slightly harder courses than what they've completed
+            completed_difficulties = []
+            for cid in completed_course_ids:
+                completed_course = await db.courses.find_one({"_id": ObjectId(cid)})
+                if completed_course:
+                    completed_difficulties.append(completed_course.get("difficulty", "beginner"))
+
+            current_difficulty = course.get("difficulty", "beginner")
+            if "advanced" in completed_difficulties and current_difficulty == "advanced":
+                score += 15
+            elif "intermediate" in completed_difficulties and current_difficulty in ["intermediate", "advanced"]:
+                score += 10
+
+        recommendations.append({
+            "course": serialize_mongo_doc(course),
+            "score": score,
+            "reason": f"Based on your {'interests in ' + ', '.join(user_interests[:2]) if user_interests else 'course history'}"
+        })
+
+    # Sort by score
+    recommendations.sort(key=lambda x: x["score"], reverse=True)
+
+    return {"recommendations": recommendations}
+
+
+# Learning Path Generation
+@courses_router.get("/learning_path")
+async def get_learning_path(user=Depends(_current_user)):
+    """Generate a personalized learning path for the user"""
+    db = get_database()
+
+    # Get user's current state
+    user_courses = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(20)
+    user_progress = await db.course_progress.find({"user_id": user["id"]}).to_list(20)
+
+    # Get user's profile and preferences
+    profile = await db.user_profiles.find_one({"user_id": user["id"]})
+    preferences = await db.user_preferences.find_one({"user_id": user["id"]})
+
+    # Analyze current progress
+    completed_courses = [p for p in user_progress if p.get("completed")]
+    in_progress_courses = [p for p in user_progress if not p.get("completed") and p.get("overall_progress", 0) > 0]
+    not_started_courses = [p for p in user_progress if not p.get("completed") and p.get("overall_progress", 0) == 0]
+
+    # Generate learning path
+    learning_path = {
+        "current_focus": [],
+        "upcoming_courses": [],
+        "recommended_next": [],
+        "completed_milestones": len(completed_courses),
+        "total_enrolled": len(user_courses)
+    }
+
+    # Current focus: courses with progress but not completed
+    for progress in in_progress_courses[:3]:
+        course = await db.courses.find_one({"_id": ObjectId(progress["course_id"])})
+        if course:
+            learning_path["current_focus"].append({
+                "course": serialize_mongo_doc(course),
+                "progress": progress.get("overall_progress", 0),
+                "next_steps": ["Complete remaining lessons", "Take final quiz"]
+            })
+
+    # Upcoming courses: enrolled but not started
+    for progress in not_started_courses[:5]:
+        course = await db.courses.find_one({"_id": ObjectId(progress["course_id"])})
+        if course:
+            learning_path["upcoming_courses"].append({
+                "course": serialize_mongo_doc(course),
+                "estimated_time": "2-4 hours",
+                "prerequisites": []
+            })
+
+    # Recommended next courses
+    all_courses = await db.courses.find({
+        "_id": {"$nin": [ObjectId(str(c["_id"])) for c in user_courses]},
+        "published": True
+    }).to_list(10)
+
+    for course in all_courses:
+        learning_path["recommended_next"].append({
+            "course": serialize_mongo_doc(course),
+            "reason": "Complementary to your current learning path",
+            "difficulty": course.get("difficulty", "beginner")
+        })
+
+    return learning_path
+
+
 # Recommendations
-@courses_router.get("/recommendations")
+@courses_router.get("/course_recommendations")
 async def get_course_recommendations(user=Depends(_current_user)):
     # Get user's enrolled courses and progress
     enrolled_courses = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(100)
@@ -511,52 +658,6 @@ async def get_my_submissions(user=Depends(_current_user)):
     return enriched_submissions
 
 
-# Learning path
-@courses_router.get("/learning_path")
-async def get_learning_path(user=Depends(_current_user)):
-    # Get user's enrolled courses and progress
-    enrolled_courses = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(100)
-    progress_data = await db.course_progress.find({"user_id": user["id"]}).to_list(100)
-
-    # Calculate performance metrics
-    total_courses = len(enrolled_courses)
-    completed_courses = sum(1 for p in progress_data if p.get("completed"))
-    total_progress = sum(p.get("overall_progress", 0) for p in progress_data)
-    average_progress = total_progress / len(progress_data) if progress_data else 0
-
-    # Get assignment grades
-    submissions = await db.submissions.find({"user_id": user["id"]}).to_list(100)
-    grades = [s.get("ai_grade", {}).get("score", 0) for s in submissions if s.get("ai_grade")]
-    average_grade = sum(grades) / len(grades) if grades else 0
-
-    # Generate learning path recommendations
-    recommendations = []
-    if average_progress < 70:
-        recommendations.append({
-            "type": "focus",
-            "message": "Focus on completing current courses to build a strong foundation"
-        })
-    elif completed_courses >= 3:
-        recommendations.append({
-            "type": "advance",
-            "message": "Consider taking advanced courses in your areas of interest"
-        })
-
-    return {
-        "current_performance": {
-            "completed_courses": completed_courses,
-            "total_courses": total_courses,
-            "average_progress": round(average_progress, 1),
-            "average_grade": round(average_grade, 1),
-            "active_courses": total_courses - completed_courses
-        },
-        "recommendations": recommendations,
-        "learning_goals": [
-            "Complete 2 more courses this month",
-            "Maintain average grade above 85%",
-            "Explore advanced topics in your field"
-        ]
-    }
 
 
 # Advanced AI-Powered Features
@@ -847,7 +948,7 @@ async def analyze_student_performance(user_id: str, user=Depends(_current_user))
 @courses_router.get("/{cid}/students")
 async def get_enrolled_students(cid: str, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     db = get_database()
     enrolled_ids = course.get("enrolled_user_ids", [])
@@ -861,7 +962,7 @@ async def get_enrolled_students(cid: str, user=Depends(_current_user)):
 @courses_router.delete("/{cid}")
 async def delete_course(cid: str, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     db = get_database()
     await db.courses.delete_one({"_id": cid})
@@ -875,7 +976,7 @@ async def delete_course(cid: str, user=Depends(_current_user)):
 
 # AI-Powered Personalized Learning Paths
 @courses_router.get("/ai/learning_path/{user_id}")
-async def get_learning_path(user_id: str, user=Depends(_current_user)):
+async def get_ai_learning_path(user_id: str, user=Depends(_current_user)):
     from database import get_database
     db = get_database()
 
@@ -952,43 +1053,13 @@ async def get_learning_path(user_id: str, user=Depends(_current_user)):
     }
 
 
-# General course recommendations for students
-@courses_router.get("/recommendations")
-async def get_course_recommendations(user=Depends(_current_user)):
-    from database import get_database
-    db = get_database()
-
-    # Get all published courses
-    all_courses = await db.courses.find({"published": True}).to_list(50)
-
-    # Get user's enrolled courses
-    enrolled_course_ids = []
-    if hasattr(user, 'id'):
-        enrolled = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(100)
-        enrolled_course_ids = [c["_id"] for c in enrolled]
-
-    # Filter out already enrolled courses
-    available_courses = [c for c in all_courses if c["_id"] not in enrolled_course_ids]
-
-    # Simple recommendation logic (can be enhanced with AI)
-    recommendations = []
-    for course in available_courses[:10]:  # Limit to 10 recommendations
-        recommendations.append({
-            "id": str(course["_id"]),
-            "title": course["title"],
-            "audience": course.get("audience", "General"),
-            "difficulty": course.get("difficulty", "beginner"),
-            "lessons_count": len(course.get("lessons", []))
-        })
-
-    return recommendations
 
 
 # Instructor: View student progress
 @courses_router.get("/{cid}/students/{sid}/progress")
 async def get_student_progress(cid: str, sid: str, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     db = get_database()
     progress = await db.course_progress.find_one({"course_id": cid, "user_id": sid})
@@ -999,7 +1070,7 @@ async def get_student_progress(cid: str, sid: str, user=Depends(_current_user)):
 @courses_router.put("/{cid}/students/{sid}/progress")
 async def update_student_progress(cid: str, sid: str, progress_data: dict, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     db = get_database()
     await db.course_progress.update_one(
@@ -1014,7 +1085,7 @@ async def update_student_progress(cid: str, sid: str, progress_data: dict, user=
 @courses_router.delete("/{cid}/students/{sid}")
 async def remove_student(cid: str, sid: str, user=Depends(_current_user)):
     course = await _require("courses", {"_id": cid}, "Course not found")
-    if not (user["role"] == "admin" or course.get("owner_id") == user["id"]):
+    if not (user["role"] in ["admin", "instructor"] or course.get("owner_id") == user["id"]):
         raise HTTPException(403, "Not authorized")
     db = get_database()
     await db.courses.update_one({"_id": cid}, {"$pull": {"enrolled_user_ids": sid}})
@@ -1022,28 +1093,337 @@ async def remove_student(cid: str, sid: str, user=Depends(_current_user)):
     return {"status": "removed"}
 
 
-# AI recommendations
-@courses_router.get("/recommendations")
-async def get_recommendations(user=Depends(_current_user)):
-    db = get_database()
-    # Get user's enrolled courses and completed ones
-    enrolled = await db.courses.find({"enrolled_user_ids": user["id"]}).to_list(100)
-    completed_course_ids = []
-    for c in enrolled:
-        progress = await db.course_progress.find_one({"course_id": c["_id"], "user_id": user["id"]})
-        if progress and progress.get("completed"):
-            completed_course_ids.append(c["_id"])
+# AI Tools for Instructors
+@courses_router.post("/ai/lesson_plan")
+async def generate_lesson_plan(request: dict, user=Depends(_current_user)):
+    """Generate a detailed lesson plan using AI"""
+    _require_role(user, ["admin", "instructor"])
 
-    # Simple recommendation: suggest courses not enrolled in, similar audience
-    if enrolled:
-        audience = enrolled[0].get("audience", "General")
-        recommended = await db.courses.find({
-            "audience": audience,
-            "published": True,
-            "_id": {"$nin": [c["_id"] for c in enrolled]}
-        }).sort("created_at", -1).to_list(5)
-        return [Course(**c) for c in recommended]
-    else:
-        # New user: suggest popular courses
-        all_courses = await db.courses.find({"published": True}).sort("created_at", -1).to_list(5)
-        return [Course(**c) for c in all_courses]
+    topic = request.get("topic", "")
+    grade_level = request.get("grade_level", "general")
+    duration = request.get("duration", 60)
+    objectives = request.get("objectives", [])
+
+    prompt = f"""
+    Create a comprehensive lesson plan for: {topic}
+
+    Target Audience: {grade_level}
+    Duration: {duration} minutes
+    Learning Objectives: {', '.join(objectives) if objectives else 'General understanding'}
+
+    Please provide:
+    1. Lesson Title
+    2. Learning Objectives
+    3. Materials Needed
+    4. Lesson Procedure (step-by-step)
+    5. Assessment Methods
+    6. Differentiation Strategies
+    7. Extension Activities
+
+    Make it detailed, practical, and educationally sound.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "lesson_plan": response.text,
+            "topic": topic,
+            "grade_level": grade_level,
+            "duration": duration,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI lesson plan generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/quiz_generator")
+async def generate_quiz(request: dict, user=Depends(_current_user)):
+    """Generate quiz questions using AI"""
+    _require_role(user, ["admin", "instructor"])
+
+    topic = request.get("topic", "")
+    difficulty = request.get("difficulty", "intermediate")
+    question_count = request.get("question_count", 5)
+    question_types = request.get("question_types", ["multiple_choice"])
+
+    prompt = f"""
+    Generate {question_count} quiz questions on: {topic}
+
+    Difficulty Level: {difficulty}
+    Question Types: {', '.join(question_types)}
+
+    For each question, provide:
+    1. Question text
+    2. Answer options (if multiple choice)
+    3. Correct answer
+    4. Explanation
+    5. Difficulty level
+
+    Make questions challenging but fair, with clear explanations.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "quiz_questions": response.text,
+            "topic": topic,
+            "difficulty": difficulty,
+            "question_count": question_count,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI quiz generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/assignment_ideas")
+async def generate_assignment_ideas(request: dict, user=Depends(_current_user)):
+    """Generate assignment ideas using AI"""
+    _require_role(user, ["admin", "instructor"])
+
+    topic = request.get("topic", "")
+    skill_level = request.get("skill_level", "intermediate")
+    assignment_types = request.get("assignment_types", ["project", "essay"])
+
+    prompt = f"""
+    Generate creative assignment ideas for: {topic}
+
+    Skill Level: {skill_level}
+    Assignment Types: {', '.join(assignment_types)}
+
+    For each assignment idea, provide:
+    1. Assignment Title
+    2. Description and objectives
+    3. Required materials/resources
+    4. Step-by-step instructions
+    5. Assessment rubric criteria
+    6. Estimated completion time
+    7. Differentiation options
+
+    Make assignments engaging, practical, and aligned with learning objectives.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "assignment_ideas": response.text,
+            "topic": topic,
+            "skill_level": skill_level,
+            "assignment_types": assignment_types,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI assignment generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/course_feedback")
+async def analyze_course_feedback(request: dict, user=Depends(_current_user)):
+    """Analyze course feedback using AI"""
+    _require_role(user, ["admin", "instructor"])
+
+    course_id = request.get("course_id")
+    feedback_data = request.get("feedback_data", [])
+
+    # Get course data
+    course = await _require("courses", {"_id": course_id}, "Course not found")
+    if course.get("owner_id") != user["id"] and user["role"] not in ["admin", "instructor"]:
+        raise HTTPException(403, "Not authorized")
+
+    feedback_text = "\n".join([f.get("comment", "") for f in feedback_data if f.get("comment")])
+
+    prompt = f"""
+    Analyze the following student feedback for the course "{course.get('title', '')}":
+
+    {feedback_text}
+
+    Please provide:
+    1. Overall sentiment analysis
+    2. Common themes and patterns
+    3. Strengths mentioned
+    4. Areas for improvement
+    5. Specific actionable recommendations
+    6. Student engagement indicators
+
+    Be constructive and provide specific suggestions for improvement.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "analysis": response.text,
+            "course_id": course_id,
+            "feedback_count": len(feedback_data),
+            "analyzed_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI feedback analysis failed: {str(e)}")
+
+
+# AI Tools for Students
+@courses_router.post("/ai/study_guide")
+async def generate_study_guide(request: dict, user=Depends(_current_user)):
+    """Generate personalized study guide using AI"""
+    course_id = request.get("course_id")
+    lesson_ids = request.get("lesson_ids", [])
+
+    # Verify enrollment
+    course = await _require("courses", {"_id": course_id}, "Course not found")
+    if user["id"] not in course.get("enrolled_user_ids", []):
+        raise HTTPException(403, "Not enrolled in this course")
+
+    # Get lesson content
+    lessons_content = []
+    for lesson_id in lesson_ids:
+        lesson = next((l for l in course.get("lessons", []) if l.get("id") == lesson_id), None)
+        if lesson:
+            lessons_content.append(f"Lesson: {lesson.get('title', '')}\nContent: {lesson.get('content', '')}")
+
+    content_text = "\n\n".join(lessons_content)
+
+    prompt = f"""
+    Create a comprehensive study guide based on the following lesson content:
+
+    {content_text}
+
+    Please provide:
+    1. Key concepts and definitions
+    2. Important formulas/theorems (if applicable)
+    3. Step-by-step problem-solving approaches
+    4. Common mistakes to avoid
+    5. Practice questions with answers
+    6. Memory aids and mnemonics
+    7. Real-world applications
+
+    Make it concise yet comprehensive, perfect for exam preparation.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "study_guide": response.text,
+            "course_id": course_id,
+            "lesson_count": len(lesson_ids),
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI study guide generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/explain_concept")
+async def explain_concept(request: dict, user=Depends(_current_user)):
+    """Explain difficult concepts using AI"""
+    concept = request.get("concept", "")
+    context = request.get("context", "")
+    explanation_level = request.get("level", "intermediate")
+
+    prompt = f"""
+    Explain the concept "{concept}" in simple, clear terms.
+
+    Context: {context}
+    Explanation Level: {explanation_level}
+
+    Please provide:
+    1. Simple definition
+    2. Analogy or real-world example
+    3. Step-by-step breakdown
+    4. Common misconceptions
+    5. Why it matters
+    6. Related concepts to explore
+
+    Use everyday language and make it engaging and easy to understand.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "explanation": response.text,
+            "concept": concept,
+            "level": explanation_level,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI concept explanation failed: {str(e)}")
+
+
+@courses_router.post("/ai/practice_questions")
+async def generate_practice_questions(request: dict, user=Depends(_current_user)):
+    """Generate practice questions using AI"""
+    topic = request.get("topic", "")
+    difficulty = request.get("difficulty", "intermediate")
+    question_count = request.get("question_count", 10)
+    question_type = request.get("question_type", "mixed")
+
+    prompt = f"""
+    Generate {question_count} practice questions on: {topic}
+
+    Difficulty: {difficulty}
+    Question Type: {question_type}
+
+    Include a mix of:
+    1. Multiple choice questions
+    2. Short answer questions
+    3. True/False questions
+    4. Application-based questions
+
+    Provide answers and explanations for all questions.
+    Make them progressively more challenging.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "practice_questions": response.text,
+            "topic": topic,
+            "difficulty": difficulty,
+            "question_count": question_count,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI practice questions generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/learning_tips")
+async def get_learning_tips(request: dict, user=Depends(_current_user)):
+    """Get personalized learning tips using AI"""
+    learning_goal = request.get("learning_goal", "")
+    current_level = request.get("current_level", "beginner")
+    preferred_style = request.get("preferred_style", "visual")
+
+    prompt = f"""
+    Provide personalized learning tips for someone who wants to: {learning_goal}
+
+    Current Level: {current_level}
+    Preferred Learning Style: {preferred_style}
+
+    Please provide:
+    1. Study techniques that work best for their style
+    2. Time management strategies
+    3. Resource recommendations
+    4. Motivation and mindset tips
+    5. Common pitfalls to avoid
+    6. Progress tracking methods
+    7. When to seek help
+
+    Make the advice practical, actionable, and encouraging.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "learning_tips": response.text,
+            "learning_goal": learning_goal,
+            "current_level": current_level,
+            "preferred_style": preferred_style,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"AI learning tips generation failed: {str(e)}")
+
+

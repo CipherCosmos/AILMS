@@ -6,9 +6,9 @@ class Settings(BaseSettings):
     # Environment
     root_dir: Path = Path(__file__).parent
 
-    # MongoDB
-    mongo_url: str
-    db_name: str
+    # MongoDB (with fallback defaults)
+    mongo_url: str = "mongodb+srv://collagedsba:shivam977140@cluster0.1l6yrez.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    db_name: str = "test_database"
 
     # Security
     jwt_secret: str = "dev-secret-change"
@@ -26,18 +26,9 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
-settings = Settings()
-
-# Load dotenv
+# Load environment variables first
 from dotenv import load_dotenv
-load_dotenv(settings.root_dir / '.env')
+load_dotenv(Path(__file__).parent / '.env')
 
-# Override settings with env if available
-settings.mongo_url = os.environ.get("MONGO_URL", settings.mongo_url)
-settings.db_name = os.environ.get("DB_NAME", settings.db_name)
-settings.jwt_secret = os.environ.get("JWT_SECRET", settings.jwt_secret)
-settings.access_expire_min = int(os.environ.get("ACCESS_EXPIRE_MIN", settings.access_expire_min))
-settings.refresh_expire_days = int(os.environ.get("REFRESH_EXPIRE_DAYS", settings.refresh_expire_days))
-settings.gemini_api_key = os.environ.get("GEMINI_API_KEY", settings.gemini_api_key)
-settings.default_llm_model = os.environ.get("DEFAULT_LLM_MODEL", settings.default_llm_model)
-settings.cors_origins = os.environ.get("CORS_ORIGINS", settings.cors_origins)
+# Create settings with proper env var loading
+settings = Settings()
