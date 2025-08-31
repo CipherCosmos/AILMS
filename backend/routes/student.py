@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import get_database, _uuid
 from auth import _current_user
 from models import UserProfile, CareerProfile
@@ -69,8 +69,8 @@ async def get_study_plan(user=Depends(_current_user)):
                     "duration": 60
                 }
             ],
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
         }
 
         await db.study_plans.insert_one(study_plan)
@@ -323,18 +323,19 @@ async def get_study_streak(user=Depends(_current_user)):
 
     if not study_streak:
         # Create initial streak data
+        now = datetime.now(timezone.utc)
         study_streak = {
             "_id": _uuid(),
             "user_id": user["id"],
             "current_streak": 5,
             "longest_streak": 12,
             "total_days": 28,
-            "last_study_date": datetime.utcnow().date(),
+            "last_study_date": now.replace(hour=0, minute=0, second=0, microsecond=0),  # Convert to datetime at start of day
             "streak_history": [
-                {"date": (datetime.utcnow() - timedelta(days=i)).date(), "studied": True}
+                {"date": (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0), "studied": True}
                 for i in range(5)
             ] + [
-                {"date": (datetime.utcnow() - timedelta(days=i)).date(), "studied": False}
+                {"date": (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0), "studied": False}
                 for i in range(5, 10)
             ],
             "weekly_goal": 5,
@@ -365,15 +366,15 @@ async def log_study_session(session_data: dict, user=Depends(_current_user)):
     study_streak = await db.study_streaks.find_one({"user_id": user["id"]})
 
     if study_streak:
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         last_study_date = study_streak.get("last_study_date")
 
-        if last_study_date == today:
+        if last_study_date and last_study_date.date() == today:
             # Already studied today
             return {"status": "already_logged"}
 
         # Check if streak continues
-        days_diff = (today - last_study_date).days if last_study_date else 0
+        days_diff = (today - last_study_date.date()).days if last_study_date else 0
 
         if days_diff == 1:
             # Continue streak
@@ -401,7 +402,7 @@ async def log_study_session(session_data: dict, user=Depends(_current_user)):
         "course_id": session_data.get("course_id"),
         "duration_minutes": session_data.get("duration_minutes", 30),
         "topics_covered": session_data.get("topics_covered", []),
-        "session_date": datetime.utcnow(),
+        "session_date": datetime.now(timezone.utc),
         "productivity_score": session_data.get("productivity_score", 7)
     }
 
@@ -420,7 +421,7 @@ async def get_learning_analytics(timeframe: str = "month", user=Depends(_current
         raise HTTPException(403, "Student access required")
 
     # Calculate date range
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if timeframe == "week":
         start_date = now - timedelta(days=7)
     elif timeframe == "month":
@@ -504,7 +505,7 @@ async def get_achievements(user=Depends(_current_user)):
                 "title": "First Steps",
                 "description": "Completed your first course",
                 "icon": "🎓",
-                "earned_date": datetime.utcnow() - timedelta(days=30),
+                "earned_date": datetime.now(timezone.utc) - timedelta(days=30),
                 "category": "milestone"
             },
             {
@@ -513,7 +514,7 @@ async def get_achievements(user=Depends(_current_user)):
                 "title": "Streak Master",
                 "description": "Maintained a 7-day learning streak",
                 "icon": "🔥",
-                "earned_date": datetime.utcnow() - timedelta(days=7),
+                "earned_date": datetime.now(timezone.utc) - timedelta(days=7),
                 "category": "consistency"
             },
             {
@@ -522,7 +523,7 @@ async def get_achievements(user=Depends(_current_user)):
                 "title": "Problem Solver",
                 "description": "Solved 50 coding problems",
                 "icon": "🧠",
-                "earned_date": datetime.utcnow() - timedelta(days=14),
+                "earned_date": datetime.now(timezone.utc) - timedelta(days=14),
                 "category": "skill"
             },
             {
@@ -531,7 +532,7 @@ async def get_achievements(user=Depends(_current_user)):
                 "title": "Team Player",
                 "description": "Contributed to 10 group projects",
                 "icon": "🤝",
-                "earned_date": datetime.utcnow() - timedelta(days=21),
+                "earned_date": datetime.now(timezone.utc) - timedelta(days=21),
                 "category": "collaboration"
             }
         ]

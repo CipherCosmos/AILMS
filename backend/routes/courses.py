@@ -21,7 +21,7 @@ from models import (
 )
 from config import settings
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from utils import serialize_mongo_doc
 from bson import ObjectId
 from pydantic import BaseModel
@@ -377,7 +377,12 @@ async def update_progress(cid: str, progress_data: dict, user=Depends(_current_u
     db = get_database()
     progress_doc = await db.course_progress.find_one({"course_id": cid, "user_id": user["id"]})
     if not progress_doc:
-        progress_doc = {"course_id": cid, "user_id": user["id"], "lessons_progress": []}
+        progress_doc = {"course_id": cid, "user_id": user["id"], "lessons_progress": [], "overall_progress": 0, "completed": False}
+    else:
+        # Ensure existing documents have required fields
+        progress_doc.setdefault("overall_progress", 0)
+        progress_doc.setdefault("completed", False)
+        progress_doc.setdefault("lessons_progress", [])
 
     lesson_id = progress_data.get("lesson_id")
     completed = progress_data.get("completed", False)
@@ -390,29 +395,29 @@ async def update_progress(cid: str, progress_data: dict, user=Depends(_current_u
 
     if completed and not lesson_progress["completed"]:
         lesson_progress["completed"] = True
-        lesson_progress["completed_at"] = datetime.utcnow()
+        lesson_progress["completed_at"] = datetime.now(timezone.utc)
 
     # Handle quiz score
     if quiz_score is not None:
         lesson_progress["quiz_score"] = quiz_score
         lesson_progress["quiz_completed"] = True
-        lesson_progress["quiz_completed_at"] = datetime.utcnow()
+        lesson_progress["quiz_completed_at"] = datetime.now(timezone.utc)
 
     # Calculate overall progress
     total_lessons = len(course.get("lessons", []))
     completed_lessons = sum(1 for lp in progress_doc["lessons_progress"] if lp["completed"])
     progress_doc["overall_progress"] = (completed_lessons / total_lessons * 100) if total_lessons > 0 else 0
 
-    if progress_doc["overall_progress"] >= 100 and not progress_doc.get("completed"):
+    if progress_doc["overall_progress"] >= 100 and not progress_doc.get("completed", False):
         progress_doc["completed"] = True
-        progress_doc["completed_at"] = datetime.utcnow()
+        progress_doc["completed_at"] = datetime.now(timezone.utc)
 
     await db.course_progress.update_one(
         {"course_id": cid, "user_id": user["id"]},
         {"$set": progress_doc},
         upsert=True
     )
-    return {"progress": progress_doc["overall_progress"], "completed": progress_doc["completed"]}
+    return {"progress": progress_doc.get("overall_progress", 0), "completed": progress_doc.get("completed", False)}
 
 
 @courses_router.get("/{cid}/progress")
@@ -722,7 +727,7 @@ async def get_personalized_learning_path(user_id: str, user=Depends(_current_use
             reasons.append("Experienced learner - ready for complex topics")
 
         # Time-based recommendations (recent activity)
-        recent_activity = len([s for s in user_submissions if (datetime.utcnow() - s.get("created_at", datetime.utcnow())).days < 7])
+        recent_activity = len([s for s in user_submissions if (datetime.now(timezone.utc) - s.get("created_at", datetime.now(timezone.utc))).days < 7])
         if recent_activity > 5:
             score += 20
             reasons.append("Active learner - recommended continuation")
@@ -885,7 +890,7 @@ Make the content engaging, practical, and educationally sound."""
             "audience": audience,
             "difficulty": difficulty,
             "lesson_count": lesson_count,
-            "generation_timestamp": datetime.utcnow().isoformat()
+            "generation_timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         raise HTTPException(500, f"AI content generation failed: {str(e)}")
@@ -1131,7 +1136,7 @@ async def generate_lesson_plan(request: dict, user=Depends(_current_user)):
             "topic": topic,
             "grade_level": grade_level,
             "duration": duration,
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         raise HTTPException(500, f"AI lesson plan generation failed: {str(e)}")

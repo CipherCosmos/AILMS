@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timezone
 from config import settings
 from routes.courses import courses_router
 from routes.assignments import assignments_router
@@ -28,6 +28,7 @@ from routes.parent import parent_router
 from routes.reviewer import reviewer_router
 from routes.integrations import integrations_router
 from routes.ai_ethics import ai_ethics_router
+from routes.student import student_router
 from auth import auth_router
 import json
 from bson import ObjectId
@@ -114,6 +115,7 @@ api.include_router(parent_router, prefix="/parent", tags=["parent"])
 api.include_router(reviewer_router, prefix="/reviewer", tags=["reviewer"])
 api.include_router(integrations_router, prefix="/integrations", tags=["integrations"])
 api.include_router(ai_ethics_router, prefix="/ai-ethics", tags=["ai-ethics"])
+api.include_router(student_router, prefix="/student", tags=["student"])
 
 # API health check
 @api.get("/")
@@ -163,16 +165,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 message_type = message_data.get('type', 'unknown')
 
                 if message_type == 'ping':
-                    await manager.send_personal_message(json.dumps({"type": "pong", "timestamp": str(datetime.utcnow())}), websocket)
+                    await manager.send_personal_message(json.dumps({"type": "pong", "timestamp": str(datetime.now(timezone.utc))}), websocket)
                 elif message_type == 'subscribe':
-                    await manager.send_personal_message(json.dumps({"type": "subscribed", "user_id": user_id, "timestamp": str(datetime.utcnow())}), websocket)
+                    await manager.send_personal_message(json.dumps({"type": "subscribed", "user_id": user_id, "timestamp": str(datetime.now(timezone.utc))}), websocket)
                 else:
                     # Echo back for unknown message types
                     await manager.send_personal_message(json.dumps({
                         "type": "echo",
                         "message": data,
                         "user_id": user_id,
-                        "timestamp": str(datetime.utcnow())
+                        "timestamp": str(datetime.now(timezone.utc))
                     }), websocket)
             except json.JSONDecodeError:
                 # If not JSON, echo back as JSON
@@ -199,7 +201,7 @@ async def send_realtime_notification(user_id: str, notification_type: str, data:
         "type": "notification",
         "notification_type": notification_type,
         "data": data,
-        "timestamp": str(datetime.utcnow())
+        "timestamp": str(datetime.now(timezone.utc))
     })
 
     # In production, you'd send to specific user's WebSocket connection

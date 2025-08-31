@@ -4,6 +4,10 @@ def serialize_mongo_doc(doc):
     if not doc:
         return doc
 
+    # Handle ObjectId at top level
+    if isinstance(doc, __import__('bson').ObjectId):
+        return str(doc)
+
     if isinstance(doc, list):
         return [serialize_mongo_doc(item) for item in doc]
 

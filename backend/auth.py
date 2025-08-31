@@ -2,7 +2,7 @@ from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from passlib.hash import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from config import settings
 from database import get_database, _find_one, _update_one
@@ -20,7 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 async def _create_tokens(user: Dict[str, Any]) -> TokenPair:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     access = jwt.encode(
         {
             "sub": user["id"],
