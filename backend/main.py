@@ -19,6 +19,15 @@ from routes.wellbeing import wellbeing_router
 from routes.course_content import course_content_router
 from routes.career import career_router
 from routes.reviews import reviews_router
+from routes.proctoring import proctoring_router
+from routes.alumni import alumni_router
+from routes.student import student_router
+from routes.instructor import instructor_router
+from routes.admin import admin_router
+from routes.parent import parent_router
+from routes.reviewer import reviewer_router
+from routes.integrations import integrations_router
+from routes.ai_ethics import ai_ethics_router
 from auth import auth_router
 import json
 from bson import ObjectId
@@ -96,6 +105,15 @@ api.include_router(marketplace_router, prefix="/marketplace", tags=["marketplace
 api.include_router(wellbeing_router, prefix="/wellbeing", tags=["wellbeing"])
 api.include_router(course_content_router, prefix="/content", tags=["course_content"])
 api.include_router(career_router, prefix="/career", tags=["career"])
+api.include_router(proctoring_router, prefix="/proctoring", tags=["proctoring"])
+api.include_router(alumni_router, prefix="/alumni", tags=["alumni"])
+api.include_router(student_router, prefix="/student", tags=["student"])
+api.include_router(instructor_router, prefix="/instructor", tags=["instructor"])
+api.include_router(admin_router, prefix="/admin", tags=["admin"])
+api.include_router(parent_router, prefix="/parent", tags=["parent"])
+api.include_router(reviewer_router, prefix="/reviewer", tags=["reviewer"])
+api.include_router(integrations_router, prefix="/integrations", tags=["integrations"])
+api.include_router(ai_ethics_router, prefix="/ai-ethics", tags=["ai-ethics"])
 
 # API health check
 @api.get("/")

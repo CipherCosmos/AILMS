@@ -607,10 +607,22 @@ function InstructorDashboard({ me }) {
     description: "",
     tags: []
   });
+  const [aiTools, setAiTools] = useState(null);
+  const [studentInsights, setStudentInsights] = useState([]);
+  const [contentLibrary, setContentLibrary] = useState([]);
+  const [assessmentTemplates, setAssessmentTemplates] = useState([]);
+  const [collaborationHub, setCollaborationHub] = useState([]);
+  const [teachingAnalytics, setTeachingAnalytics] = useState(null);
 
   const refresh = () => api.get(`/courses`).then(r => setCourses(r.data));
   useEffect(() => { refresh(); }, []);
   useEffect(() => { api.get(`/analytics/instructor`).then(r => setAnalytics(r.data)); }, []);
+  useEffect(() => { api.get(`/instructor/ai-tools`).then(r => setAiTools(r.data)).catch(() => setAiTools({})); }, []);
+  useEffect(() => { api.get(`/instructor/student-insights`).then(r => setStudentInsights(r.data)).catch(() => setStudentInsights([])); }, []);
+  useEffect(() => { api.get(`/instructor/content-library`).then(r => setContentLibrary(r.data)).catch(() => setContentLibrary([])); }, []);
+  useEffect(() => { api.get(`/instructor/assessment-templates`).then(r => setAssessmentTemplates(r.data)).catch(() => setAssessmentTemplates([])); }, []);
+  useEffect(() => { api.get(`/instructor/collaboration-hub`).then(r => setCollaborationHub(r.data)).catch(() => setCollaborationHub([])); }, []);
+  useEffect(() => { api.get(`/instructor/teaching-analytics`).then(r => setTeachingAnalytics(r.data)).catch(() => setTeachingAnalytics(null)); }, []);
 
   const createCourse = async (e) => {
     e.preventDefault(); setError("");
@@ -721,7 +733,31 @@ ${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') ||
           className={activeTab === "tools" ? "active" : ""}
           onClick={() => setActiveTab("tools")}
         >
-          Tools
+          AI Tools
+        </button>
+        <button
+          className={activeTab === "insights" ? "active" : ""}
+          onClick={() => setActiveTab("insights")}
+        >
+          Student Insights
+        </button>
+        <button
+          className={activeTab === "content" ? "active" : ""}
+          onClick={() => setActiveTab("content")}
+        >
+          Content Hub
+        </button>
+        <button
+          className={activeTab === "assessments" ? "active" : ""}
+          onClick={() => setActiveTab("assessments")}
+        >
+          Assessments
+        </button>
+        <button
+          className={activeTab === "collaboration" ? "active" : ""}
+          onClick={() => setActiveTab("collaboration")}
+        >
+          Collaboration
         </button>
       </div>
 
@@ -881,11 +917,11 @@ ${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') ||
 
         {activeTab === "tools" && (
           <div className="tools-section">
-            <h2>AI Teaching Tools</h2>
+            <h2>Advanced AI Teaching Tools</h2>
 
             <div className="tools-grid">
               <div className="tool-card">
-                <h3>Course Generator</h3>
+                <h3>🤖 Course Generator</h3>
                 <p>Generate complete courses using AI</p>
                 <form onSubmit={generateCourse} className="tool-form">
                   <div className="form-group">
@@ -926,27 +962,359 @@ ${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') ||
               </div>
 
               <div className="tool-card">
-                <h3>Content Analyzer</h3>
-                <p>Analyze course content for improvements</p>
-                <button className="btn secondary" onClick={() => alert("Content analysis feature coming soon!")}>
-                  Analyze Content
+                <h3>📝 Content Enhancer</h3>
+                <p>AI-powered content improvement and accessibility</p>
+                <button className="btn secondary" onClick={() => alert("Content enhancement feature coming soon!")}>
+                  Enhance Content
                 </button>
               </div>
 
               <div className="tool-card">
-                <h3>Quiz Generator</h3>
-                <p>Generate quizzes for any lesson</p>
-                <button className="btn secondary" onClick={() => alert("Quiz generation available in course editor!")}>
+                <h3>🧠 Quiz Generator</h3>
+                <p>Generate adaptive quizzes with difficulty scaling</p>
+                <button className="btn secondary" onClick={() => alert("Advanced quiz generation available in course editor!")}>
                   Generate Quiz
                 </button>
               </div>
 
               <div className="tool-card">
-                <h3>Student Insights</h3>
-                <p>Get AI-powered student performance insights</p>
-                <button className="btn secondary" onClick={() => setActiveTab("analytics")}>
-                  View Insights
+                <h3>📊 Learning Analytics</h3>
+                <p>Advanced student performance analytics</p>
+                <button className="btn secondary" onClick={() => setActiveTab("insights")}>
+                  View Analytics
                 </button>
+              </div>
+
+              <div className="tool-card">
+                <h3>🎯 Personalized Learning</h3>
+                <p>Create adaptive learning paths</p>
+                <button className="btn secondary" onClick={() => alert("Personalized learning paths coming soon!")}>
+                  Create Paths
+                </button>
+              </div>
+
+              <div className="tool-card">
+                <h3>📈 Assessment Builder</h3>
+                <p>Build comprehensive assessment frameworks</p>
+                <button className="btn secondary" onClick={() => setActiveTab("assessments")}>
+                  Build Assessments
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "insights" && (
+          <div className="insights-section">
+            <h2>Student Performance Insights</h2>
+            <div className="insights-grid">
+              <div className="insight-card">
+                <h3>📊 Class Performance Overview</h3>
+                <div className="performance-metrics">
+                  <div className="metric">
+                    <span className="label">Average Grade:</span>
+                    <span className="value">{analytics?.average_grade || 0}%</span>
+                  </div>
+                  <div className="metric">
+                    <span className="label">Completion Rate:</span>
+                    <span className="value">{analytics?.completion_rate || 0}%</span>
+                  </div>
+                  <div className="metric">
+                    <span className="label">Engagement Score:</span>
+                    <span className="value">{analytics?.engagement_score || 0}/100</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>🎯 At-Risk Students</h3>
+                <div className="risk-students">
+                  {studentInsights.filter(s => s.at_risk).map(student => (
+                    <div key={student.id} className="risk-student">
+                      <div className="student-info">
+                        <h4>{student.name}</h4>
+                        <p>Risk Level: {student.risk_level}</p>
+                      </div>
+                      <div className="intervention">
+                        <button className="btn small">Intervene</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>📈 Learning Patterns</h3>
+                <div className="patterns">
+                  <div className="pattern">
+                    <h4>Peak Learning Times</h4>
+                    <p>Most active: 2-4 PM</p>
+                  </div>
+                  <div className="pattern">
+                    <h4>Preferred Content Types</h4>
+                    <p>Video content: 65%, Text: 25%, Interactive: 10%</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>🏆 Top Performers</h3>
+                <div className="top-students">
+                  {studentInsights.filter(s => s.top_performer).slice(0, 3).map(student => (
+                    <div key={student.id} className="top-student">
+                      <div className="student-rank">#{student.rank}</div>
+                      <div className="student-info">
+                        <h4>{student.name}</h4>
+                        <p>Grade: {student.grade}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "content" && (
+          <div className="content-section">
+            <h2>Content Management Hub</h2>
+            <div className="content-tools">
+              <div className="tool-bar">
+                <button className="btn primary">+ Create Content</button>
+                <button className="btn secondary">Import Resources</button>
+                <button className="btn secondary">Bulk Actions</button>
+              </div>
+
+              <div className="content-filters">
+                <select>
+                  <option>All Content Types</option>
+                  <option>Videos</option>
+                  <option>Documents</option>
+                  <option>Quizzes</option>
+                  <option>Assignments</option>
+                </select>
+                <select>
+                  <option>All Subjects</option>
+                  <option>Programming</option>
+                  <option>Mathematics</option>
+                  <option>Science</option>
+                </select>
+                <input type="text" placeholder="Search content..." />
+              </div>
+            </div>
+
+            <div className="content-library">
+              <div className="content-grid">
+                {contentLibrary.map(content => (
+                  <div key={content.id} className="content-card">
+                    <div className="content-preview">
+                      {content.type === 'video' && '🎥'}
+                      {content.type === 'document' && '📄'}
+                      {content.type === 'quiz' && '🧠'}
+                      {content.type === 'assignment' && '📝'}
+                    </div>
+                    <div className="content-info">
+                      <h4>{content.title}</h4>
+                      <p>{content.description}</p>
+                      <div className="content-meta">
+                        <span>Type: {content.type}</span>
+                        <span>Usage: {content.usage_count} times</span>
+                      </div>
+                    </div>
+                    <div className="content-actions">
+                      <button className="btn small">Edit</button>
+                      <button className="btn small secondary">Duplicate</button>
+                      <button className="btn small danger">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "assessments" && (
+          <div className="assessments-section">
+            <h2>Advanced Assessment Center</h2>
+            <div className="assessment-tools">
+              <div className="tool-bar">
+                <button className="btn primary">+ Create Assessment</button>
+                <button className="btn secondary">Assessment Templates</button>
+                <button className="btn secondary">Grade Book</button>
+              </div>
+            </div>
+
+            <div className="assessment-grid">
+              <div className="assessment-card">
+                <h3>📝 Quiz Builder</h3>
+                <p>Create adaptive quizzes with AI assistance</p>
+                <div className="assessment-features">
+                  <span>✓ Multiple choice</span>
+                  <span>✓ True/False</span>
+                  <span>✓ Short answer</span>
+                  <span>✓ Auto-grading</span>
+                </div>
+                <button className="btn primary">Create Quiz</button>
+              </div>
+
+              <div className="assessment-card">
+                <h3>📋 Assignment Builder</h3>
+                <p>Design comprehensive assignments with rubrics</p>
+                <div className="assessment-features">
+                  <span>✓ Custom rubrics</span>
+                  <span>✓ File submissions</span>
+                  <span>✓ Peer review</span>
+                  <span>✓ Plagiarism check</span>
+                </div>
+                <button className="btn primary">Create Assignment</button>
+              </div>
+
+              <div className="assessment-card">
+                <h3>🎯 Project Assessments</h3>
+                <p>Evaluate student projects and portfolios</p>
+                <div className="assessment-features">
+                  <span>✓ Project rubrics</span>
+                  <span>✓ Milestone tracking</span>
+                  <span>✓ Portfolio review</span>
+                  <span>✓ Final evaluation</span>
+                </div>
+                <button className="btn primary">Create Project</button>
+              </div>
+
+              <div className="assessment-card">
+                <h3>📊 Grade Analytics</h3>
+                <p>Advanced grading analytics and insights</p>
+                <div className="assessment-features">
+                  <span>✓ Grade distributions</span>
+                  <span>✓ Performance trends</span>
+                  <span>✓ Grade predictions</span>
+                  <span>✓ Intervention alerts</span>
+                </div>
+                <button className="btn primary">View Analytics</button>
+              </div>
+            </div>
+
+            <div className="recent-assessments">
+              <h3>Recent Assessments</h3>
+              <div className="assessment-list">
+                {assessmentTemplates.map(assessment => (
+                  <div key={assessment.id} className="assessment-item">
+                    <div className="assessment-info">
+                      <h4>{assessment.title}</h4>
+                      <p>{assessment.type} • {assessment.questions} questions</p>
+                      <small>Created: {assessment.created_date}</small>
+                    </div>
+                    <div className="assessment-stats">
+                      <span>Submissions: {assessment.submissions}</span>
+                      <span>Avg Grade: {assessment.avg_grade}%</span>
+                    </div>
+                    <div className="assessment-actions">
+                      <button className="btn small">Edit</button>
+                      <button className="btn small secondary">Grade</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "collaboration" && (
+          <div className="collaboration-section">
+            <h2>Instructor Collaboration Hub</h2>
+            <div className="collaboration-grid">
+              <div className="collaboration-card">
+                <h3>👥 Peer Network</h3>
+                <p>Connect with fellow instructors</p>
+                <div className="network-stats">
+                  <div className="stat">
+                    <span>24</span>
+                    <small>Connections</small>
+                  </div>
+                  <div className="stat">
+                    <span>8</span>
+                    <small>Active Discussions</small>
+                  </div>
+                </div>
+                <button className="btn primary">Explore Network</button>
+              </div>
+
+              <div className="collaboration-card">
+                <h3>📚 Resource Sharing</h3>
+                <p>Share teaching materials and best practices</p>
+                <div className="resource-stats">
+                  <div className="stat">
+                    <span>156</span>
+                    <small>Shared Resources</small>
+                  </div>
+                  <div className="stat">
+                    <span>23</span>
+                    <small>Downloads</small>
+                  </div>
+                </div>
+                <button className="btn primary">Browse Resources</button>
+              </div>
+
+              <div className="collaboration-card">
+                <h3>🎓 Professional Development</h3>
+                <p>Access training and certification programs</p>
+                <div className="pd-stats">
+                  <div className="stat">
+                    <span>12</span>
+                    <small>Courses Available</small>
+                  </div>
+                  <div className="stat">
+                    <span>5</span>
+                    <small>Certifications</small>
+                  </div>
+                </div>
+                <button className="btn primary">View Programs</button>
+              </div>
+
+              <div className="collaboration-card">
+                <h3>💬 Discussion Forums</h3>
+                <p>Join instructor community discussions</p>
+                <div className="forum-stats">
+                  <div className="stat">
+                    <span>89</span>
+                    <small>Active Topics</small>
+                  </div>
+                  <div className="stat">
+                    <span>1.2k</span>
+                    <small>Messages</small>
+                  </div>
+                </div>
+                <button className="btn primary">Join Discussions</button>
+              </div>
+            </div>
+
+            <div className="collaboration-activity">
+              <h3>Recent Activity</h3>
+              <div className="activity-feed">
+                <div className="activity-item">
+                  <div className="activity-icon">📝</div>
+                  <div className="activity-content">
+                    <h4>Sarah shared a new teaching resource</h4>
+                    <p>"Interactive Python exercises for beginners"</p>
+                    <small>2 hours ago</small>
+                  </div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-icon">🏆</div>
+                  <div className="activity-content">
+                    <h4>Mike completed "Advanced Assessment Design" certification</h4>
+                    <p>Congratulations on your achievement!</p>
+                    <small>5 hours ago</small>
+                  </div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-icon">💬</div>
+                  <div className="activity-content">
+                    <h4>New discussion: "Best practices for online assessment"</h4>
+                    <p>Started by Dr. Johnson with 15 replies</p>
+                    <small>1 day ago</small>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1345,6 +1713,405 @@ ${analytics.performance_insights?.map(insight => `• ${insight}`).join('\n') ||
         .btn.secondary {
           background: #6c757d;
           color: white;
+        }
+
+        .insights-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .insights-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 2rem;
+          margin-top: 2rem;
+        }
+
+        .insight-card {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .insight-card h3 {
+          margin: 0 0 1.5rem 0;
+          color: #2c3e50;
+        }
+
+        .performance-metrics {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .metric {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .metric .label {
+          font-weight: 500;
+          color: #6c757d;
+        }
+
+        .metric .value {
+          font-weight: 700;
+          color: #667eea;
+        }
+
+        .risk-students {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .risk-student {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1rem;
+          background: #fff5f5;
+          border: 1px solid #fed7d7;
+          border-radius: 8px;
+        }
+
+        .risk-student h4 {
+          margin: 0 0 0.25rem 0;
+          color: #c53030;
+        }
+
+        .patterns {
+          display: grid;
+          gap: 1.5rem;
+        }
+
+        .pattern h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .pattern p {
+          margin: 0;
+          color: #6c757d;
+        }
+
+        .top-students {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .top-student {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem;
+          background: #f0fff4;
+          border: 1px solid #c6f6d5;
+          border-radius: 8px;
+        }
+
+        .student-rank {
+          background: #38a169;
+          color: white;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+        }
+
+        .content-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .content-tools {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          margin-bottom: 2rem;
+        }
+
+        .tool-bar {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+
+        .content-filters {
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .content-filters select,
+        .content-filters input {
+          padding: 0.5rem 1rem;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+        }
+
+        .content-library {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .content-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 1.5rem;
+        }
+
+        .content-card {
+          border: 1px solid #eee;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .content-preview {
+          height: 120px;
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2rem;
+          color: white;
+        }
+
+        .content-info {
+          padding: 1.5rem;
+        }
+
+        .content-info h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .content-info p {
+          margin: 0.5rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .content-meta {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.8rem;
+          color: #6c757d;
+          margin-top: 1rem;
+        }
+
+        .content-actions {
+          padding: 1rem 1.5rem;
+          border-top: 1px solid #eee;
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .assessments-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .assessment-tools {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          margin-bottom: 2rem;
+        }
+
+        .assessment-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 2rem;
+          margin-bottom: 3rem;
+        }
+
+        .assessment-card {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          text-align: center;
+        }
+
+        .assessment-card h3 {
+          margin: 0 0 1rem 0;
+          color: #2c3e50;
+        }
+
+        .assessment-card p {
+          margin: 0 0 1.5rem 0;
+          color: #6c757d;
+        }
+
+        .assessment-features {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          justify-content: center;
+          margin-bottom: 1.5rem;
+        }
+
+        .assessment-features span {
+          background: #e9ecef;
+          color: #495057;
+          padding: 0.25rem 0.5rem;
+          border-radius: 12px;
+          font-size: 0.8rem;
+        }
+
+        .recent-assessments {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .assessment-list {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .assessment-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.5rem;
+          border: 1px solid #eee;
+          border-radius: 8px;
+        }
+
+        .assessment-info h4 {
+          margin: 0 0 0.25rem 0;
+          color: #2c3e50;
+        }
+
+        .assessment-info p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .assessment-stats {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .assessment-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .collaboration-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .collaboration-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 2rem;
+          margin-bottom: 3rem;
+        }
+
+        .collaboration-card {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          text-align: center;
+        }
+
+        .collaboration-card h3 {
+          margin: 0 0 1rem 0;
+          color: #2c3e50;
+        }
+
+        .collaboration-card p {
+          margin: 0 0 1.5rem 0;
+          color: #6c757d;
+        }
+
+        .network-stats,
+        .resource-stats,
+        .pd-stats,
+        .forum-stats {
+          display: flex;
+          justify-content: center;
+          gap: 2rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .stat {
+          text-align: center;
+        }
+
+        .stat span {
+          display: block;
+          font-size: 1.5rem;
+          font-weight: bold;
+          color: #667eea;
+        }
+
+        .stat small {
+          color: #6c757d;
+          font-size: 0.8rem;
+        }
+
+        .collaboration-activity {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .activity-feed {
+          display: grid;
+          gap: 1.5rem;
+        }
+
+        .activity-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 1rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .activity-icon {
+          font-size: 1.5rem;
+          margin-top: 0.25rem;
+        }
+
+        .activity-content h4 {
+          margin: 0 0 0.25rem 0;
+          color: #2c3e50;
+          font-size: 1rem;
+        }
+
+        .activity-content p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .activity-content small {
+          color: #6c757d;
+          font-size: 0.8rem;
         }
 
         .btn.small {

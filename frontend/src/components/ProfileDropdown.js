@@ -43,22 +43,42 @@ function ProfileDropdown({ user, onLogout, onNavigate }) {
 
   const getRoleColor = (role) => {
     const colors = {
-      admin: '#dc3545',
+      super_admin: '#dc3545',
+      org_admin: '#dc3545',
+      dept_admin: '#dc3545',
       instructor: '#28a745',
+      teaching_assistant: '#28a745',
+      content_author: '#28a745',
       student: '#007bff',
       auditor: '#6f42c1',
-      parent: '#fd7e14'
+      parent_guardian: '#fd7e14',
+      proctor: '#17a2b8',
+      support_moderator: '#ffc107',
+      career_coach: '#20c997',
+      marketplace_manager: '#e83e8c',
+      industry_reviewer: '#6f42c1',
+      alumni: '#6c757d'
     };
     return colors[role] || '#6c757d';
   };
 
   const getRoleIcon = (role) => {
     const icons = {
-      admin: '👑',
+      super_admin: '👑',
+      org_admin: '🏢',
+      dept_admin: '📋',
       instructor: '🎓',
+      teaching_assistant: '👨‍🏫',
+      content_author: '✍️',
       student: '📚',
       auditor: '🔍',
-      parent: '👨‍👩‍👧‍👦'
+      parent_guardian: '👨‍👩‍👧‍👦',
+      proctor: '👁️',
+      support_moderator: '🆘',
+      career_coach: '🎯',
+      marketplace_manager: '🛒',
+      industry_reviewer: '⭐',
+      alumni: '🎓'
     };
     return icons[role] || '👤';
   };

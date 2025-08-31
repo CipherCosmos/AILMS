@@ -1,295 +1,79 @@
 import React, { useEffect, useState } from "react";
 import api from "../services/api";
 
-function AlumniNetwork({ me }) {
+function AlumniNetwork() {
+  const [activeTab, setActiveTab] = useState("directory");
   const [alumni, setAlumni] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [jobs, setJobs] = useState([]);
   const [mentorshipRequests, setMentorshipRequests] = useState([]);
-  const [activeTab, setActiveTab] = useState("network");
-  const [newPost, setNewPost] = useState("");
+  const [events, setEvents] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedAlumni, setSelectedAlumni] = useState(null);
+  const [filters, setFilters] = useState({
+    industry: "",
+    graduation_year: "",
+    location: "",
+    skills: ""
+  });
 
   useEffect(() => {
-    loadAlumni();
-    loadPosts();
-    loadEvents();
-    loadJobs();
-    loadMentorshipRequests();
-  }, []);
+    loadAlumniData();
+  }, [activeTab]);
 
-  const loadAlumni = async () => {
+  const loadAlumniData = async () => {
     try {
-      // Mock data - would come from API
-      setAlumni([
-        {
-          id: "alumni1",
-          name: "Sarah Chen",
-          graduationYear: 2020,
-          currentPosition: "Software Engineer at Google",
-          company: "Google",
-          location: "Mountain View, CA",
-          skills: ["JavaScript", "Python", "Machine Learning"],
-          avatar: "👩‍💻",
-          linkedin: "https://linkedin.com/in/sarahchen",
-          email: "sarah.chen@email.com",
-          bio: "Passionate about AI and education technology. Always happy to help fellow alumni!",
-          achievements: ["Dean's List 2018-2020", "AI Research Award", "Hackathon Winner"]
-        },
-        {
-          id: "alumni2",
-          name: "Marcus Rodriguez",
-          graduationYear: 2019,
-          currentPosition: "Product Manager at Meta",
-          company: "Meta",
-          location: "Menlo Park, CA",
-          skills: ["Product Strategy", "Data Analysis", "UX Design"],
-          avatar: "👨‍💼",
-          linkedin: "https://linkedin.com/in/marcusr",
-          email: "marcus.rodriguez@email.com",
-          bio: "Product management enthusiast. Love mentoring students interested in tech product roles.",
-          achievements: ["Outstanding Graduate", "Product Launch Success", "Mentor of the Year"]
-        },
-        {
-          id: "alumni3",
-          name: "Dr. Emily Watson",
-          graduationYear: 2015,
-          currentPosition: "Research Scientist at DeepMind",
-          company: "DeepMind",
-          location: "London, UK",
-          skills: ["AI Research", "Neural Networks", "Academic Writing"],
-          avatar: "👩‍🔬",
-          linkedin: "https://linkedin.com/in/emilywatson",
-          email: "emily.watson@email.com",
-          bio: "AI researcher with a passion for advancing machine learning. Available for research discussions.",
-          achievements: ["PhD in AI", "Published 15+ Papers", "Best Researcher Award"]
-        }
+      const [alumniRes, mentorshipRes, eventsRes] = await Promise.all([
+        api.get("/alumni/directory", { params: { search: searchTerm, ...filters } }),
+        api.get("/alumni/mentorship/requests"),
+        api.get("/alumni/events")
       ]);
+      setAlumni(alumniRes.data);
+      setMentorshipRequests(mentorshipRes.data);
+      setEvents(eventsRes.data);
     } catch (error) {
-      console.error("Error loading alumni:", error);
+      console.error("Error loading alumni data:", error);
     }
   };
 
-  const loadPosts = async () => {
+  const requestMentorship = async (alumniId) => {
     try {
-      // Mock data - would come from API
-      setPosts([
-        {
-          id: "post1",
-          author: "Sarah Chen",
-          authorId: "alumni1",
-          content: "Excited to announce that our startup just raised $2M in Series A funding! Big thanks to the entrepreneurial spirit I developed during my time at the university. #Entrepreneurship #Success",
-          timestamp: "2024-01-25T10:30:00Z",
-          likes: 24,
-          comments: 8,
-          tags: ["entrepreneurship", "success", "startup"],
-          type: "achievement"
-        },
-        {
-          id: "post2",
-          author: "Marcus Rodriguez",
-          authorId: "alumni2",
-          content: "Looking for talented product managers to join our team at Meta! If you're a recent graduate with PM aspirations, I'd love to chat about opportunities. DM me for more details.",
-          timestamp: "2024-01-24T15:45:00Z",
-          likes: 18,
-          comments: 12,
-          tags: ["job", "mentorship", "product"],
-          type: "opportunity"
-        },
-        {
-          id: "post3",
-          author: "Dr. Emily Watson",
-          authorId: "alumni3",
-          content: "Just published a new paper on 'Ethical AI in Education' in Nature Machine Intelligence. The research builds on my thesis work from grad school. Proud to see how far the field has come! 📄🤖",
-          timestamp: "2024-01-23T09:15:00Z",
-          likes: 31,
-          comments: 15,
-          tags: ["research", "ai", "ethics"],
-          type: "academic"
-        }
-      ]);
+      await api.post(`/alumni/mentorship/request/${alumniId}`, {
+        message: "I'd like to connect with you for career guidance."
+      });
+      alert("Mentorship request sent!");
+      loadAlumniData();
     } catch (error) {
-      console.error("Error loading posts:", error);
+      alert("Error sending mentorship request");
     }
   };
 
-  const loadEvents = async () => {
+  const joinEvent = async (eventId) => {
     try {
-      // Mock data - would come from API
-      setEvents([
-        {
-          id: "event1",
-          title: "Alumni Networking Mixer",
-          date: "2024-02-15T18:00:00Z",
-          location: "San Francisco, CA",
-          description: "Connect with fellow alumni over drinks and appetizers. Network, share experiences, and build lasting professional relationships.",
-          attendees: 45,
-          maxAttendees: 100,
-          organizer: "Alumni Association",
-          type: "networking"
-        },
-        {
-          id: "event2",
-          title: "Tech Career Panel",
-          date: "2024-02-20T14:00:00Z",
-          location: "Virtual",
-          description: "Hear from successful alumni in tech careers. Panel includes engineers, product managers, and startup founders sharing their journeys and advice.",
-          attendees: 120,
-          maxAttendees: 200,
-          organizer: "Career Services",
-          type: "career"
-        },
-        {
-          id: "event3",
-          title: "AI & ML Workshop",
-          date: "2024-03-05T10:00:00Z",
-          location: "New York, NY",
-          description: "Hands-on workshop on latest AI/ML techniques. Perfect for staying current with industry trends.",
-          attendees: 25,
-          maxAttendees: 50,
-          organizer: "Tech Committee",
-          type: "workshop"
-        }
-      ]);
+      await api.post(`/alumni/events/${eventId}/join`);
+      alert("Successfully joined the event!");
+      loadAlumniData();
     } catch (error) {
-      console.error("Error loading events:", error);
+      alert("Error joining event");
     }
   };
 
-  const loadJobs = async () => {
-    try {
-      // Mock data - would come from API
-      setJobs([
-        {
-          id: "job1",
-          title: "Senior Software Engineer",
-          company: "Google",
-          location: "Mountain View, CA",
-          type: "Full-time",
-          salary: "$150k - $220k",
-          description: "Join our team building the next generation of AI-powered applications. Looking for experienced engineers with a passion for machine learning.",
-          requirements: ["5+ years experience", "Python, JavaScript", "ML/AI experience"],
-          postedBy: "Sarah Chen",
-          postedDate: "2024-01-20",
-          applicationDeadline: "2024-02-20"
-        },
-        {
-          id: "job2",
-          title: "Product Manager",
-          company: "Meta",
-          location: "Menlo Park, CA",
-          type: "Full-time",
-          salary: "$130k - $180k",
-          description: "Drive product strategy for our education technology initiatives. Work with cross-functional teams to deliver innovative solutions.",
-          requirements: ["3+ years PM experience", "Technical background", "Education domain knowledge"],
-          postedBy: "Marcus Rodriguez",
-          postedDate: "2024-01-22",
-          applicationDeadline: "2024-02-15"
-        }
-      ]);
-    } catch (error) {
-      console.error("Error loading jobs:", error);
-    }
-  };
-
-  const loadMentorshipRequests = async () => {
-    try {
-      // Mock data - would come from API
-      setMentorshipRequests([
-        {
-          id: "request1",
-          menteeName: "Alex Johnson",
-          menteeYear: "Junior",
-          requestedSkills: ["Career Advice", "Interview Prep", "Networking"],
-          message: "Hi! I'm interested in pursuing a career in tech and would love some guidance on breaking into the industry.",
-          status: "pending"
-        },
-        {
-          id: "request2",
-          menteeName: "Maria Garcia",
-          menteeYear: "Senior",
-          requestedSkills: ["Research", "Academic Writing", "PhD Applications"],
-          message: "I'm considering graduate school and would appreciate advice on the application process and research opportunities.",
-          status: "accepted"
-        }
-      ]);
-    } catch (error) {
-      console.error("Error loading mentorship requests:", error);
-    }
-  };
-
-  const createPost = async () => {
-    if (!newPost.trim()) return;
-
-    try {
-      // In a real implementation, this would call the API
-      const post = {
-        id: Date.now().toString(),
-        author: me?.name || "Anonymous",
-        authorId: me?.id || "anonymous",
-        content: newPost,
-        timestamp: new Date().toISOString(),
-        likes: 0,
-        comments: 0,
-        tags: [],
-        type: "general"
-      };
-
-      setPosts(prev => [post, ...prev]);
-      setNewPost("");
-    } catch (error) {
-      console.error("Error creating post:", error);
-    }
-  };
-
-  const connectWithAlumni = async (alumniId) => {
-    try {
-      // In a real implementation, this would send a connection request
-      alert(`Connection request sent to ${alumni.find(a => a.id === alumniId)?.name}!`);
-    } catch (error) {
-      console.error("Error sending connection request:", error);
-    }
-  };
-
-  const filteredAlumni = alumni.filter(alumni =>
-    alumni.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    alumni.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    alumni.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredAlumni = alumni.filter(person =>
+    person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.industry?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.current_position?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="alumni-network">
-      <div className="network-header">
+      <div className="alumni-header">
         <h1>🎓 Alumni Network</h1>
-        <p>Stay connected, grow your network, and give back to the community</p>
+        <p>Connect with fellow graduates, find mentors, and build your professional network</p>
       </div>
 
-      <div className="network-tabs">
+      <div className="alumni-tabs">
         <button
-          className={activeTab === "network" ? "active" : ""}
-          onClick={() => setActiveTab("network")}
+          className={activeTab === "directory" ? "active" : ""}
+          onClick={() => setActiveTab("directory")}
         >
-          Network
-        </button>
-        <button
-          className={activeTab === "feed" ? "active" : ""}
-          onClick={() => setActiveTab("feed")}
-        >
-          Feed
-        </button>
-        <button
-          className={activeTab === "events" ? "active" : ""}
-          onClick={() => setActiveTab("events")}
-        >
-          Events
-        </button>
-        <button
-          className={activeTab === "jobs" ? "active" : ""}
-          onClick={() => setActiveTab("jobs")}
-        >
-          Jobs
+          Alumni Directory
         </button>
         <button
           className={activeTab === "mentorship" ? "active" : ""}
@@ -297,233 +81,76 @@ function AlumniNetwork({ me }) {
         >
           Mentorship
         </button>
+        <button
+          className={activeTab === "events" ? "active" : ""}
+          onClick={() => setActiveTab("events")}
+        >
+          Events & Reunions
+        </button>
+        <button
+          className={activeTab === "opportunities" ? "active" : ""}
+          onClick={() => setActiveTab("opportunities")}
+        >
+          Opportunities
+        </button>
       </div>
 
-      <div className="network-content">
-        {activeTab === "network" && (
-          <div className="network-section">
-            <div className="search-section">
-              <input
-                type="text"
-                placeholder="Search alumni by name, company, or skills..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
+      <div className="alumni-content">
+        {activeTab === "directory" && (
+          <div className="directory-section">
+            <div className="directory-header">
+              <h2>Alumni Directory</h2>
+              <div className="directory-controls">
+                <input
+                  type="text"
+                  placeholder="Search alumni..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+                <select
+                  value={filters.industry}
+                  onChange={(e) => setFilters({...filters, industry: e.target.value})}
+                >
+                  <option value="">All Industries</option>
+                  <option value="technology">Technology</option>
+                  <option value="finance">Finance</option>
+                  <option value="healthcare">Healthcare</option>
+                  <option value="education">Education</option>
+                </select>
+              </div>
             </div>
 
             <div className="alumni-grid">
-              {filteredAlumni.map(alumni => (
-                <div key={alumni.id} className="alumni-card">
-                  <div className="alumni-header">
-                    <div className="alumni-avatar">{alumni.avatar}</div>
-                    <div className="alumni-basic">
-                      <h3>{alumni.name}</h3>
-                      <p className="graduation">Class of {alumni.graduationYear}</p>
+              {filteredAlumni.map(person => (
+                <div key={person.id} className="alumni-card">
+                  <div className="alumni-avatar">
+                    <span>{person.name.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="alumni-info">
+                    <h3>{person.name}</h3>
+                    <p className="current-position">{person.current_position}</p>
+                    <p className="company">{person.company}</p>
+                    <div className="alumni-details">
+                      <span className="graduation-year">🎓 {person.graduation_year}</span>
+                      <span className="location">📍 {person.location}</span>
                     </div>
-                  </div>
-
-                  <div className="alumni-details">
-                    <div className="current-role">
-                      <h4>{alumni.currentPosition}</h4>
-                      <p>{alumni.company} • {alumni.location}</p>
-                    </div>
-
-                    <div className="skills-section">
-                      <h5>Skills & Expertise</h5>
-                      <div className="skills-list">
-                        {alumni.skills.map(skill => (
-                          <span key={skill} className="skill-tag">{skill}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bio-section">
-                      <p className="bio">{alumni.bio}</p>
-                    </div>
-
-                    <div className="achievements-section">
-                      <h5>Achievements</h5>
-                      <ul className="achievements-list">
-                        {alumni.achievements.map((achievement, index) => (
-                          <li key={index}>{achievement}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="alumni-actions">
-                    <button
-                      className="btn primary"
-                      onClick={() => connectWithAlumni(alumni.id)}
-                    >
-                      Connect
-                    </button>
-                    <button
-                      className="btn secondary"
-                      onClick={() => setSelectedAlumni(alumni)}
-                    >
-                      View Profile
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "feed" && (
-          <div className="feed-section">
-            <div className="create-post">
-              <textarea
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                placeholder="Share your achievements, opportunities, or insights with the alumni community..."
-                rows={3}
-                className="post-input"
-              />
-              <button
-                className="btn primary"
-                onClick={createPost}
-                disabled={!newPost.trim()}
-              >
-                Post
-              </button>
-            </div>
-
-            <div className="posts-feed">
-              {posts.map(post => (
-                <div key={post.id} className="post-card">
-                  <div className="post-header">
-                    <div className="post-author">
-                      <div className="author-avatar">
-                        {alumni.find(a => a.id === post.authorId)?.avatar || "👤"}
-                      </div>
-                      <div className="author-info">
-                        <h4>{post.author}</h4>
-                        <span className="post-time">
-                          {new Date(post.timestamp).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="post-type">
-                      {post.type === "achievement" && "🏆"}
-                      {post.type === "opportunity" && "💼"}
-                      {post.type === "academic" && "📚"}
-                    </div>
-                  </div>
-
-                  <div className="post-content">
-                    <p>{post.content}</p>
-                    {post.tags.length > 0 && (
-                      <div className="post-tags">
-                        {post.tags.map(tag => (
-                          <span key={tag} className="tag">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="post-actions">
-                    <button className="action-btn">
-                      👍 {post.likes}
-                    </button>
-                    <button className="action-btn">
-                      💬 {post.comments}
-                    </button>
-                    <button className="action-btn">
-                      🔗 Share
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "events" && (
-          <div className="events-section">
-            <h2>Upcoming Events</h2>
-            <div className="events-grid">
-              {events.map(event => (
-                <div key={event.id} className="event-card">
-                  <div className="event-header">
-                    <h3>{event.title}</h3>
-                    <div className="event-type">{event.type}</div>
-                  </div>
-
-                  <div className="event-details">
-                    <div className="event-date">
-                      📅 {new Date(event.date).toLocaleDateString()}
-                    </div>
-                    <div className="event-location">
-                      📍 {event.location}
-                    </div>
-                    <div className="event-attendees">
-                      👥 {event.attendees}/{event.maxAttendees} attending
-                    </div>
-                  </div>
-
-                  <div className="event-description">
-                    <p>{event.description}</p>
-                  </div>
-
-                  <div className="event-organizer">
-                    <small>Organized by: {event.organizer}</small>
-                  </div>
-
-                  <div className="event-actions">
-                    <button className="btn primary">RSVP</button>
-                    <button className="btn secondary">Learn More</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "jobs" && (
-          <div className="jobs-section">
-            <h2>Job Opportunities</h2>
-            <div className="jobs-list">
-              {jobs.map(job => (
-                <div key={job.id} className="job-card">
-                  <div className="job-header">
-                    <h3>{job.title}</h3>
-                    <div className="job-company">{job.company}</div>
-                  </div>
-
-                  <div className="job-details">
-                    <div className="job-location">📍 {job.location}</div>
-                    <div className="job-type">💼 {job.type}</div>
-                    <div className="job-salary">💰 {job.salary}</div>
-                  </div>
-
-                  <div className="job-description">
-                    <p>{job.description}</p>
-                  </div>
-
-                  <div className="job-requirements">
-                    <h4>Requirements:</h4>
-                    <ul>
-                      {job.requirements.map((req, index) => (
-                        <li key={index}>{req}</li>
+                    <div className="alumni-skills">
+                      {person.skills?.slice(0, 3).map(skill => (
+                        <span key={skill} className="skill-tag">{skill}</span>
                       ))}
-                    </ul>
-                  </div>
-
-                  <div className="job-footer">
-                    <div className="job-poster">
-                      Posted by {job.postedBy} • {new Date(job.postedDate).toLocaleDateString()}
                     </div>
-                    <div className="job-deadline">
-                      Apply by {new Date(job.applicationDeadline).toLocaleDateString()}
+                    <div className="alumni-actions">
+                      <button
+                        className="btn small primary"
+                        onClick={() => requestMentorship(person.id)}
+                      >
+                        Request Mentorship
+                      </button>
+                      <button className="btn small secondary">
+                        View Profile
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="job-actions">
-                    <button className="btn primary">Apply Now</button>
-                    <button className="btn secondary">Save Job</button>
                   </div>
                 </div>
               ))}
@@ -535,58 +162,105 @@ function AlumniNetwork({ me }) {
           <div className="mentorship-section">
             <div className="mentorship-header">
               <h2>Mentorship Program</h2>
-              <p>Connect with experienced alumni for career guidance and professional development</p>
+              <p>Connect with experienced alumni for career guidance</p>
             </div>
 
-            <div className="mentorship-content">
-              <div className="mentorship-requests">
+            <div className="mentorship-stats">
+              <div className="stat-card">
+                <h3>Active Mentors</h3>
+                <div className="stat-value">{alumni.filter(a => a.available_for_mentoring).length}</div>
+              </div>
+              <div className="stat-card">
                 <h3>Mentorship Requests</h3>
-                <div className="requests-list">
-                  {mentorshipRequests.map(request => (
-                    <div key={request.id} className="request-card">
-                      <div className="request-header">
-                        <h4>{request.menteeName}</h4>
-                        <span className={`status ${request.status}`}>{request.status}</span>
-                      </div>
+                <div className="stat-value">{mentorshipRequests.length}</div>
+              </div>
+              <div className="stat-card">
+                <h3>Success Rate</h3>
+                <div className="stat-value">85%</div>
+              </div>
+            </div>
 
-                      <div className="request-details">
-                        <p><strong>Year:</strong> {request.menteeYear}</p>
-                        <p><strong>Interested in:</strong> {request.requestedSkills.join(", ")}</p>
-                        <p><strong>Message:</strong> {request.message}</p>
-                      </div>
-
-                      <div className="request-actions">
-                        {request.status === "pending" && (
-                          <>
-                            <button className="btn primary">Accept</button>
-                            <button className="btn secondary">Decline</button>
-                          </>
-                        )}
-                        {request.status === "accepted" && (
-                          <button className="btn primary">Schedule Meeting</button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            <div className="mentorship-requests">
+              <h3>Your Mentorship Requests</h3>
+              {mentorshipRequests.map(request => (
+                <div key={request.id} className="request-card">
+                  <div className="request-info">
+                    <h4>{request.mentor_name}</h4>
+                    <p>{request.message}</p>
+                    <span className={`status ${request.status}`}>{request.status}</span>
+                  </div>
+                  <div className="request-date">
+                    {new Date(request.created_at).toLocaleDateString()}
+                  </div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "events" && (
+          <div className="events-section">
+            <div className="events-header">
+              <h2>Alumni Events & Reunions</h2>
+              <p>Stay connected through virtual and in-person events</p>
+            </div>
+
+            <div className="events-grid">
+              {events.map(event => (
+                <div key={event.id} className="event-card">
+                  <div className="event-image">
+                    <span>{event.type === "virtual" ? "💻" : "🏛️"}</span>
+                  </div>
+                  <div className="event-info">
+                    <h3>{event.title}</h3>
+                    <p>{event.description}</p>
+                    <div className="event-details">
+                      <span>📅 {new Date(event.date).toLocaleDateString()}</span>
+                      <span>🕐 {event.time}</span>
+                      <span>📍 {event.location || "Virtual"}</span>
+                    </div>
+                    <div className="event-attendees">
+                      <span>{event.attendee_count} attending</span>
+                    </div>
+                    <button
+                      className="btn primary"
+                      onClick={() => joinEvent(event.id)}
+                    >
+                      {event.is_registered ? "Registered" : "Join Event"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "opportunities" && (
+          <div className="opportunities-section">
+            <h2>Career Opportunities</h2>
+            <p>Exclusive job opportunities shared by alumni</p>
+
+            <div className="opportunities-grid">
+              <div className="opportunity-card">
+                <h3>Software Engineer at TechCorp</h3>
+                <p>Posted by Sarah Johnson (Class of 2018)</p>
+                <div className="opportunity-details">
+                  <span>📍 San Francisco, CA</span>
+                  <span>💰 $120k - $150k</span>
+                  <span>🏢 Full-time</span>
+                </div>
+                <button className="btn primary">Apply Now</button>
               </div>
 
-              <div className="mentorship-stats">
-                <h3>Your Impact</h3>
-                <div className="stats-grid">
-                  <div className="stat-card">
-                    <div className="stat-number">12</div>
-                    <div className="stat-label">Mentees Helped</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-number">48</div>
-                    <div className="stat-label">Hours Mentored</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-number">95%</div>
-                    <div className="stat-label">Satisfaction Rate</div>
-                  </div>
+              <div className="opportunity-card">
+                <h3>Marketing Manager at GrowthCo</h3>
+                <p>Posted by Michael Chen (Class of 2019)</p>
+                <div className="opportunity-details">
+                  <span>📍 New York, NY</span>
+                  <span>💰 $90k - $110k</span>
+                  <span>🏢 Full-time</span>
                 </div>
+                <button className="btn primary">Apply Now</button>
               </div>
             </div>
           </div>
@@ -600,429 +274,189 @@ function AlumniNetwork({ me }) {
           padding: 2rem;
         }
 
-        .network-header {
-          text-align: center;
+        .alumni-header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 2rem;
+          border-radius: 12px;
           margin-bottom: 2rem;
         }
 
-        .network-header h1 {
-          color: #2c3e50;
-          margin-bottom: 0.5rem;
-        }
-
-        .network-header p {
-          color: #6c757d;
-          font-size: 1.1rem;
-        }
-
-        .network-tabs {
+        .alumni-tabs {
           display: flex;
           background: white;
           border-radius: 12px;
           padding: 0.5rem;
           margin-bottom: 2rem;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           overflow-x: auto;
         }
 
-        .network-tabs button {
-          flex: 1;
-          padding: 0.75rem 1rem;
+        .alumni-tabs button {
+          padding: 0.75rem 1.5rem;
           border: none;
-          background: none;
-          color: #6c757d;
-          cursor: pointer;
+          background: transparent;
           border-radius: 8px;
-          font-weight: 500;
+          cursor: pointer;
+          font-weight: 600;
+          color: #6c757d;
           transition: all 0.3s;
           white-space: nowrap;
         }
 
-        .network-tabs button.active {
+        .alumni-tabs button.active {
           background: #667eea;
           color: white;
         }
 
-        .network-content {
-          max-width: 1200px;
-          margin: 0 auto;
+        .alumni-content {
+          background: white;
+          border-radius: 12px;
+          padding: 2rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .search-section {
+        .directory-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           margin-bottom: 2rem;
         }
 
+        .directory-controls {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+        }
+
         .search-input {
-          width: 100%;
-          padding: 1rem;
+          padding: 0.5rem 1rem;
           border: 1px solid #ddd;
-          border-radius: 8px;
-          font-size: 1rem;
+          border-radius: 6px;
+          width: 250px;
         }
 
         .alumni-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 2rem;
+          gap: 1.5rem;
         }
 
         .alumni-card {
-          background: white;
+          border: 1px solid #e9ecef;
           border-radius: 12px;
-          padding: 2rem;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          padding: 1.5rem;
+          background: white;
           transition: transform 0.3s;
         }
 
         .alumni-card:hover {
-          transform: translateY(-5px);
-        }
-
-        .alumni-header {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         .alumni-avatar {
-          font-size: 3rem;
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 1.5rem;
+          font-weight: bold;
+          margin-bottom: 1rem;
         }
 
-        .alumni-basic h3 {
-          margin: 0 0 0.25rem 0;
-          color: #2c3e50;
-        }
-
-        .graduation {
-          color: #6c757d;
-          font-size: 0.9rem;
-        }
-
-        .current-role h4 {
+        .alumni-info h3 {
           margin: 0 0 0.5rem 0;
           color: #2c3e50;
         }
 
-        .current-role p {
-          margin: 0;
+        .current-position {
+          color: #667eea;
+          font-weight: 600;
+          margin: 0.25rem 0;
+        }
+
+        .company {
+          color: #6c757d;
+          margin: 0.25rem 0;
+        }
+
+        .alumni-details {
+          display: flex;
+          gap: 1rem;
+          margin: 1rem 0;
+          font-size: 0.9rem;
           color: #6c757d;
         }
 
-        .skills-section h5 {
-          margin: 0 0 0.75rem 0;
-          color: #2c3e50;
-          font-size: 0.9rem;
-        }
-
-        .skills-list {
+        .alumni-skills {
           display: flex;
           flex-wrap: wrap;
           gap: 0.5rem;
+          margin: 1rem 0;
         }
 
         .skill-tag {
-          background: #e3f2fd;
-          color: #1976d2;
-          padding: 0.25rem 0.75rem;
+          padding: 0.25rem 0.5rem;
+          background: #e9ecef;
+          color: #495057;
           border-radius: 12px;
           font-size: 0.8rem;
-          font-weight: 500;
-        }
-
-        .bio-section {
-          margin: 1.5rem 0;
-        }
-
-        .bio {
-          color: #495057;
-          line-height: 1.5;
-          font-style: italic;
-        }
-
-        .achievements-section h5 {
-          margin: 0 0 0.75rem 0;
-          color: #2c3e50;
-          font-size: 0.9rem;
-        }
-
-        .achievements-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .achievements-list li {
-          padding: 0.25rem 0;
-          color: #6c757d;
-          font-size: 0.9rem;
-          border-bottom: 1px solid #f8f9fa;
-        }
-
-        .achievements-list li:last-child {
-          border-bottom: none;
         }
 
         .alumni-actions {
           display: flex;
+          gap: 0.5rem;
+          margin-top: 1rem;
+        }
+
+        .mentorship-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 1rem;
-          margin-top: 1.5rem;
+          margin: 2rem 0;
         }
 
-        .create-post {
+        .stat-card {
           background: white;
-          padding: 2rem;
-          border-radius: 12px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-          margin-bottom: 2rem;
-        }
-
-        .post-input {
-          width: 100%;
-          padding: 1rem;
-          border: 1px solid #ddd;
+          padding: 1.5rem;
           border-radius: 8px;
-          font-family: inherit;
-          font-size: 1rem;
-          margin-bottom: 1rem;
-          resize: vertical;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          text-align: center;
         }
 
-        .posts-feed {
-          display: grid;
-          gap: 1.5rem;
-        }
-
-        .post-card {
-          background: white;
-          border-radius: 12px;
-          padding: 2rem;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .post-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 1rem;
-        }
-
-        .post-author {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .author-avatar {
-          font-size: 2rem;
-        }
-
-        .author-info h4 {
-          margin: 0 0 0.25rem 0;
-          color: #2c3e50;
-        }
-
-        .post-time {
-          color: #6c757d;
-          font-size: 0.8rem;
-        }
-
-        .post-content {
-          margin-bottom: 1.5rem;
-        }
-
-        .post-content p {
+        .stat-card h3 {
           margin: 0 0 1rem 0;
-          color: #495057;
-          line-height: 1.6;
+          color: #6c757d;
+          font-size: 0.9rem;
         }
 
-        .post-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-        }
-
-        .tag {
+        .stat-value {
+          font-size: 2rem;
+          font-weight: bold;
           color: #667eea;
-          font-size: 0.9rem;
-          font-weight: 500;
         }
 
-        .post-actions {
-          display: flex;
-          gap: 1rem;
-          padding-top: 1rem;
-          border-top: 1px solid #e9ecef;
-        }
-
-        .action-btn {
-          background: none;
-          border: none;
-          color: #6c757d;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.9rem;
-        }
-
-        .events-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 2rem;
-        }
-
-        .event-card {
-          background: white;
-          border-radius: 12px;
-          padding: 2rem;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .event-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 1rem;
-        }
-
-        .event-header h3 {
-          margin: 0;
-          color: #2c3e50;
-        }
-
-        .event-type {
-          background: #e3f2fd;
-          color: #1976d2;
-          padding: 0.25rem 0.75rem;
-          border-radius: 12px;
-          font-size: 0.8rem;
-          font-weight: 500;
-        }
-
-        .event-details {
-          margin-bottom: 1.5rem;
-        }
-
-        .event-details > div {
-          margin-bottom: 0.5rem;
-          color: #6c757d;
-        }
-
-        .event-description p {
-          color: #495057;
-          line-height: 1.5;
-          margin-bottom: 1rem;
-        }
-
-        .event-organizer {
-          margin-bottom: 1.5rem;
-        }
-
-        .event-actions {
-          display: flex;
-          gap: 1rem;
-        }
-
-        .jobs-list {
-          display: grid;
-          gap: 2rem;
-        }
-
-        .job-card {
-          background: white;
-          border-radius: 12px;
-          padding: 2rem;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .job-header {
-          margin-bottom: 1rem;
-        }
-
-        .job-header h3 {
-          margin: 0 0 0.5rem 0;
-          color: #2c3e50;
-        }
-
-        .job-company {
-          color: #667eea;
-          font-weight: 500;
-        }
-
-        .job-details {
-          display: flex;
-          gap: 2rem;
-          margin-bottom: 1.5rem;
-          flex-wrap: wrap;
-        }
-
-        .job-details > div {
-          color: #6c757d;
-        }
-
-        .job-description p {
-          color: #495057;
-          line-height: 1.5;
-          margin-bottom: 1.5rem;
-        }
-
-        .job-requirements h4 {
-          margin: 0 0 0.75rem 0;
-          color: #2c3e50;
-        }
-
-        .job-requirements ul {
-          margin: 0;
-          padding-left: 1.5rem;
-        }
-
-        .job-requirements li {
-          color: #6c757d;
-          margin-bottom: 0.25rem;
-        }
-
-        .job-footer {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 1.5rem;
-          font-size: 0.9rem;
-          color: #6c757d;
-        }
-
-        .job-actions {
-          display: flex;
-          gap: 1rem;
-        }
-
-        .mentorship-content {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: 2rem;
-        }
-
-        .requests-list {
-          display: grid;
-          gap: 1rem;
+        .mentorship-requests {
+          margin-top: 2rem;
         }
 
         .request-card {
-          background: white;
-          border-radius: 12px;
-          padding: 1.5rem;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .request-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          padding: 1rem;
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
           margin-bottom: 1rem;
         }
 
-        .request-header h4 {
-          margin: 0;
+        .request-info h4 {
+          margin: 0 0 0.5rem 0;
           color: #2c3e50;
         }
 
@@ -1030,7 +464,7 @@ function AlumniNetwork({ me }) {
           padding: 0.25rem 0.75rem;
           border-radius: 12px;
           font-size: 0.8rem;
-          font-weight: 500;
+          font-weight: 600;
         }
 
         .status.pending {
@@ -1043,46 +477,81 @@ function AlumniNetwork({ me }) {
           color: #155724;
         }
 
-        .request-details p {
-          margin: 0.5rem 0;
-          color: #6c757d;
-          font-size: 0.9rem;
+        .events-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+          gap: 1.5rem;
         }
 
-        .request-actions {
+        .event-card {
+          border: 1px solid #e9ecef;
+          border-radius: 12px;
+          overflow: hidden;
+          background: white;
+        }
+
+        .event-image {
+          height: 150px;
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 3rem;
+          color: white;
+        }
+
+        .event-info {
+          padding: 1.5rem;
+        }
+
+        .event-info h3 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .event-details {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          margin: 1rem 0;
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .event-attendees {
+          margin: 1rem 0;
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .opportunities-grid {
+          display: grid;
+          gap: 1rem;
+          margin-top: 2rem;
+        }
+
+        .opportunity-card {
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 1.5rem;
+          background: white;
+        }
+
+        .opportunity-card h3 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .opportunity-details {
           display: flex;
           gap: 1rem;
-          margin-top: 1rem;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          gap: 1rem;
-        }
-
-        .stat-card {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          text-align: center;
-        }
-
-        .stat-number {
-          font-size: 2rem;
-          font-weight: bold;
-          color: #667eea;
-          margin-bottom: 0.5rem;
-        }
-
-        .stat-label {
-          color: #6c757d;
+          margin: 1rem 0;
           font-size: 0.9rem;
+          color: #6c757d;
         }
 
         .btn {
-          padding: 0.75rem 1.5rem;
+          padding: 0.5rem 1rem;
           border: none;
           border-radius: 6px;
           cursor: pointer;
@@ -1095,22 +564,19 @@ function AlumniNetwork({ me }) {
           color: white;
         }
 
-        .btn.primary:hover {
-          background: #5a67d8;
-        }
-
         .btn.secondary {
           background: #6c757d;
           color: white;
         }
 
-        .btn.secondary:hover {
-          background: #5a6268;
+        .btn.small {
+          padding: 0.375rem 0.75rem;
+          font-size: 0.875rem;
         }
 
         @media (max-width: 768px) {
-          .network-tabs {
-            flex-direction: column;
+          .alumni-network {
+            padding: 1rem;
           }
 
           .alumni-grid {
@@ -1121,18 +587,33 @@ function AlumniNetwork({ me }) {
             grid-template-columns: 1fr;
           }
 
-          .mentorship-content {
-            grid-template-columns: 1fr;
+          .directory-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
           }
 
-          .job-details {
+          .directory-controls {
+            flex-direction: column;
+            width: 100%;
+          }
+
+          .search-input {
+            width: 100%;
+          }
+
+          .alumni-details {
             flex-direction: column;
             gap: 0.5rem;
           }
 
-          .job-footer {
+          .event-details {
+            gap: 0.25rem;
+          }
+
+          .opportunity-details {
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.25rem;
           }
         }
       `}</style>

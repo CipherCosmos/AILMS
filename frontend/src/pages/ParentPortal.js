@@ -8,10 +8,22 @@ function ParentPortal({ me }) {
   const [studentCourses, setStudentCourses] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
+  const [communicationHistory, setCommunicationHistory] = useState([]);
+  const [learningGoals, setLearningGoals] = useState([]);
+  const [academicAlerts, setAcademicAlerts] = useState([]);
+  const [parentResources, setParentResources] = useState([]);
+  const [studyPlans, setStudyPlans] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
 
   useEffect(() => {
     loadStudents();
     loadNotifications();
+    loadCommunicationHistory();
+    loadLearningGoals();
+    loadAcademicAlerts();
+    loadParentResources();
+    loadStudyPlans();
+    loadSupportTickets();
   }, []);
 
   useEffect(() => {
@@ -167,6 +179,176 @@ function ParentPortal({ me }) {
     }
   };
 
+  const loadCommunicationHistory = async () => {
+    try {
+      setCommunicationHistory([
+        {
+          id: "comm1",
+          studentId: "student1",
+          type: "message",
+          content: "Great job on your math homework this week!",
+          timestamp: "2024-01-25T10:30:00Z",
+          direction: "parent_to_student"
+        },
+        {
+          id: "comm2",
+          studentId: "student1",
+          type: "notification",
+          content: "Emma completed Advanced Mathematics lesson 5",
+          timestamp: "2024-01-24T15:45:00Z",
+          direction: "system"
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading communication history:", error);
+    }
+  };
+
+  const loadLearningGoals = async () => {
+    try {
+      setLearningGoals([
+        {
+          id: "goal1",
+          studentId: "student1",
+          title: "Improve Math Grade to A",
+          description: "Focus on algebra and geometry concepts",
+          targetDate: "2024-06-01",
+          progress: 75,
+          status: "on_track"
+        },
+        {
+          id: "goal2",
+          studentId: "student2",
+          title: "Complete Science Fair Project",
+          description: "Research and build a working model",
+          targetDate: "2024-03-15",
+          progress: 60,
+          status: "on_track"
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading learning goals:", error);
+    }
+  };
+
+  const loadAcademicAlerts = async () => {
+    try {
+      setAcademicAlerts([
+        {
+          id: "alert1",
+          studentId: "student1",
+          type: "warning",
+          title: "Low Engagement in Physics",
+          message: "Emma has not accessed Physics materials for 3 days",
+          severity: "medium",
+          timestamp: "2024-01-24T09:00:00Z"
+        },
+        {
+          id: "alert2",
+          studentId: "student2",
+          type: "success",
+          title: "Excellent Progress in English",
+          message: "Alex improved his reading comprehension score by 15%",
+          severity: "low",
+          timestamp: "2024-01-23T14:30:00Z"
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading academic alerts:", error);
+    }
+  };
+
+  const loadParentResources = async () => {
+    try {
+      setParentResources([
+        {
+          id: "res1",
+          title: "Supporting Your Child's Online Learning",
+          type: "guide",
+          description: "Tips for parents to help their children succeed in online education",
+          downloadUrl: "#",
+          category: "parenting"
+        },
+        {
+          id: "res2",
+          title: "Understanding Academic Progress Reports",
+          type: "video",
+          description: "Learn how to interpret your child's progress reports",
+          downloadUrl: "#",
+          category: "academic"
+        },
+        {
+          id: "res3",
+          title: "Homework Help Strategies",
+          type: "webinar",
+          description: "Effective strategies for helping with homework",
+          downloadUrl: "#",
+          category: "support"
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading parent resources:", error);
+    }
+  };
+
+  const loadStudyPlans = async () => {
+    try {
+      setStudyPlans([
+        {
+          id: "plan1",
+          studentId: "student1",
+          title: "Weekly Study Schedule",
+          description: "Balanced study plan for Emma's courses",
+          subjects: ["Math", "Physics", "English"],
+          totalHours: 15,
+          completedHours: 12,
+          status: "active"
+        },
+        {
+          id: "plan2",
+          studentId: "student2",
+          title: "Exam Preparation Plan",
+          description: "Intensive preparation for mid-term exams",
+          subjects: ["Math", "Science", "History"],
+          totalHours: 20,
+          completedHours: 8,
+          status: "active"
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading study plans:", error);
+    }
+  };
+
+  const loadSupportTickets = async () => {
+    try {
+      setSupportTickets([
+        {
+          id: "ticket1",
+          studentId: "student1",
+          title: "Technical Issue with Assignment Submission",
+          description: "Emma is having trouble uploading her math assignment",
+          status: "resolved",
+          priority: "high",
+          createdAt: "2024-01-20T08:30:00Z",
+          resolvedAt: "2024-01-20T10:15:00Z"
+        },
+        {
+          id: "ticket2",
+          studentId: "student2",
+          title: "Question About Course Content",
+          description: "Alex needs clarification on physics chapter 3",
+          status: "in_progress",
+          priority: "medium",
+          createdAt: "2024-01-24T16:00:00Z",
+          resolvedAt: null
+        }
+      ]);
+    } catch (error) {
+      console.error("Error loading support tickets:", error);
+    }
+  };
+
   return (
     <div className="parent-portal">
       <div className="portal-header">
@@ -266,6 +448,36 @@ function ParentPortal({ me }) {
                 onClick={() => setActiveTab("achievements")}
               >
                 Achievements
+              </button>
+              <button
+                className={activeTab === "communication" ? "active" : ""}
+                onClick={() => setActiveTab("communication")}
+              >
+                Communication
+              </button>
+              <button
+                className={activeTab === "goals" ? "active" : ""}
+                onClick={() => setActiveTab("goals")}
+              >
+                Learning Goals
+              </button>
+              <button
+                className={activeTab === "alerts" ? "active" : ""}
+                onClick={() => setActiveTab("alerts")}
+              >
+                Academic Alerts
+              </button>
+              <button
+                className={activeTab === "resources" ? "active" : ""}
+                onClick={() => setActiveTab("resources")}
+              >
+                Parent Resources
+              </button>
+              <button
+                className={activeTab === "support" ? "active" : ""}
+                onClick={() => setActiveTab("support")}
+              >
+                Support
               </button>
             </div>
 
@@ -383,6 +595,261 @@ function ParentPortal({ me }) {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "communication" && (
+                <div className="communication-section">
+                  <h3>Communication History</h3>
+                  <div className="communication-tools">
+                    <button className="btn primary">Send Message</button>
+                    <button className="btn secondary">Schedule Meeting</button>
+                    <button className="btn secondary">Contact Teacher</button>
+                  </div>
+
+                  <div className="communication-timeline">
+                    {communicationHistory.map(message => (
+                      <div key={message.id} className={`message-item ${message.direction}`}>
+                        <div className="message-header">
+                          <span className="message-type">{message.type}</span>
+                          <span className="message-time">
+                            {new Date(message.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="message-content">
+                          <p>{message.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "goals" && (
+                <div className="goals-section">
+                  <h3>Learning Goals & Progress</h3>
+                  <div className="goals-tools">
+                    <button className="btn primary">Set New Goal</button>
+                    <button className="btn secondary">Review Progress</button>
+                  </div>
+
+                  <div className="goals-list">
+                    {learningGoals.map(goal => (
+                      <div key={goal.id} className="goal-card">
+                        <div className="goal-header">
+                          <h4>{goal.title}</h4>
+                          <span className={`goal-status ${goal.status}`}>
+                            {goal.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p>{goal.description}</p>
+                        <div className="goal-progress">
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{width: `${goal.progress}%`}}
+                            ></div>
+                          </div>
+                          <span className="progress-text">{goal.progress}% Complete</span>
+                        </div>
+                        <div className="goal-dates">
+                          <span>Target: {new Date(goal.targetDate).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "alerts" && (
+                <div className="alerts-section">
+                  <h3>Academic Alerts & Notifications</h3>
+                  <div className="alerts-summary">
+                    <div className="alert-stat">
+                      <span className="stat-number">
+                        {academicAlerts.filter(a => a.severity === 'high').length}
+                      </span>
+                      <span className="stat-label">High Priority</span>
+                    </div>
+                    <div className="alert-stat">
+                      <span className="stat-number">
+                        {academicAlerts.filter(a => a.severity === 'medium').length}
+                      </span>
+                      <span className="stat-label">Medium Priority</span>
+                    </div>
+                    <div className="alert-stat">
+                      <span className="stat-number">
+                        {academicAlerts.filter(a => a.severity === 'low').length}
+                      </span>
+                      <span className="stat-label">Low Priority</span>
+                    </div>
+                  </div>
+
+                  <div className="alerts-list">
+                    {academicAlerts.map(alert => (
+                      <div key={alert.id} className={`alert-card ${alert.severity}`}>
+                        <div className="alert-header">
+                          <div className="alert-icon">
+                            {alert.type === 'warning' ? '⚠️' :
+                             alert.type === 'success' ? '✅' :
+                             alert.type === 'info' ? 'ℹ️' : '📢'}
+                          </div>
+                          <div className="alert-content">
+                            <h4>{alert.title}</h4>
+                            <p>{alert.message}</p>
+                            <small>{new Date(alert.timestamp).toLocaleString()}</small>
+                          </div>
+                        </div>
+                        <div className="alert-actions">
+                          <button className="btn small">Acknowledge</button>
+                          <button className="btn small secondary">Contact Teacher</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "resources" && (
+                <div className="resources-section">
+                  <h3>Parent Resources & Support</h3>
+                  <div className="resources-categories">
+                    <button className="category-btn active">All</button>
+                    <button className="category-btn">Parenting</button>
+                    <button className="category-btn">Academic</button>
+                    <button className="category-btn">Technical</button>
+                    <button className="category-btn">Wellness</button>
+                  </div>
+
+                  <div className="resources-grid">
+                    {parentResources.map(resource => (
+                      <div key={resource.id} className="resource-card">
+                        <div className="resource-icon">
+                          {resource.type === 'guide' ? '📖' :
+                           resource.type === 'video' ? '🎥' :
+                           resource.type === 'webinar' ? '🎤' : '📄'}
+                        </div>
+                        <div className="resource-content">
+                          <h4>{resource.title}</h4>
+                          <p>{resource.description}</p>
+                          <div className="resource-meta">
+                            <span className="resource-type">{resource.type}</span>
+                            <span className="resource-category">{resource.category}</span>
+                          </div>
+                        </div>
+                        <div className="resource-actions">
+                          <button className="btn small primary">Access</button>
+                          <button className="btn small secondary">Download</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="upcoming-webinars">
+                    <h4>Upcoming Webinars</h4>
+                    <div className="webinar-list">
+                      <div className="webinar-item">
+                        <div className="webinar-info">
+                          <h5>Supporting Online Learning at Home</h5>
+                          <p>Learn effective strategies for supporting your child's online education</p>
+                          <small>Jan 30, 2024 • 7:00 PM EST</small>
+                        </div>
+                        <button className="btn small primary">Register</button>
+                      </div>
+                      <div className="webinar-item">
+                        <div className="webinar-info">
+                          <h5>Understanding Progress Reports</h5>
+                          <p>Get insights into interpreting your child's academic progress</p>
+                          <small>Feb 5, 2024 • 6:30 PM EST</small>
+                        </div>
+                        <button className="btn small primary">Register</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "support" && (
+                <div className="support-section">
+                  <h3>Support & Help Center</h3>
+                  <div className="support-overview">
+                    <div className="support-stat">
+                      <span className="stat-number">
+                        {supportTickets.filter(t => t.status === 'open').length}
+                      </span>
+                      <span className="stat-label">Open Tickets</span>
+                    </div>
+                    <div className="support-stat">
+                      <span className="stat-number">
+                        {supportTickets.filter(t => t.status === 'resolved').length}
+                      </span>
+                      <span className="stat-label">Resolved</span>
+                    </div>
+                    <div className="support-stat">
+                      <span className="stat-number">2.3h</span>
+                      <span className="stat-label">Avg Response</span>
+                    </div>
+                  </div>
+
+                  <div className="quick-help">
+                    <h4>Quick Help</h4>
+                    <div className="help-grid">
+                      <div className="help-card">
+                        <h5>📚 Course Access Issues</h5>
+                        <p>Having trouble accessing course materials?</p>
+                        <button className="btn small">Get Help</button>
+                      </div>
+                      <div className="help-card">
+                        <h5>💻 Technical Problems</h5>
+                        <p>Issues with login, videos, or assignments?</p>
+                        <button className="btn small">Report Issue</button>
+                      </div>
+                      <div className="help-card">
+                        <h5>📊 Understanding Grades</h5>
+                        <p>Need help interpreting progress reports?</p>
+                        <button className="btn small">Learn More</button>
+                      </div>
+                      <div className="help-card">
+                        <h5>👥 Contact Teacher</h5>
+                        <p>Need to speak with your child's instructor?</p>
+                        <button className="btn small">Contact Form</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="support-tickets">
+                    <div className="tickets-header">
+                      <h4>Recent Support Tickets</h4>
+                      <button className="btn primary">New Ticket</button>
+                    </div>
+                    <div className="tickets-list">
+                      {supportTickets.map(ticket => (
+                        <div key={ticket.id} className="ticket-item">
+                          <div className="ticket-info">
+                            <h5>{ticket.title}</h5>
+                            <p>{ticket.description}</p>
+                            <div className="ticket-meta">
+                              <span className={`priority ${ticket.priority}`}>
+                                {ticket.priority}
+                              </span>
+                              <span className={`status ${ticket.status}`}>
+                                {ticket.status.replace('_', ' ')}
+                              </span>
+                              <small>
+                                Created: {new Date(ticket.createdAt).toLocaleDateString()}
+                              </small>
+                            </div>
+                          </div>
+                          <div className="ticket-actions">
+                            <button className="btn small">View Details</button>
+                            {ticket.status !== 'resolved' && (
+                              <button className="btn small secondary">Update</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -869,6 +1336,454 @@ function ParentPortal({ me }) {
           background: #667eea;
           border-radius: 50%;
           margin-top: 0.5rem;
+        }
+
+        .communication-section {
+          max-width: 100%;
+        }
+
+        .communication-tools {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+
+        .communication-timeline {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .message-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+          border-left: 4px solid #667eea;
+        }
+
+        .message-item.parent_to_student {
+          border-left-color: #28a745;
+        }
+
+        .message-item.system {
+          border-left-color: #6c757d;
+        }
+
+        .message-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .message-type {
+          padding: 0.25rem 0.5rem;
+          background: #667eea;
+          color: white;
+          border-radius: 12px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .message-time {
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .goals-section {
+          max-width: 100%;
+        }
+
+        .goals-tools {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+
+        .goals-list {
+          display: grid;
+          gap: 1.5rem;
+        }
+
+        .goal-card {
+          background: white;
+          padding: 1.5rem;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .goal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 1rem;
+        }
+
+        .goal-header h4 {
+          margin: 0;
+          color: #2c3e50;
+        }
+
+        .goal-status {
+          padding: 0.25rem 0.75rem;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-transform: capitalize;
+        }
+
+        .goal-status.on_track { background: #d4edda; color: #155724; }
+        .goal-status.behind { background: #f8d7da; color: #721c24; }
+        .goal-status.completed { background: #d1ecf1; color: #0c5460; }
+
+        .goal-progress {
+          margin: 1rem 0;
+        }
+
+        .goal-dates {
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .alerts-section {
+          max-width: 100%;
+        }
+
+        .alerts-summary {
+          display: flex;
+          gap: 2rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+
+        .alert-stat {
+          text-align: center;
+          padding: 1rem;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          min-width: 120px;
+        }
+
+        .alert-stat .stat-number {
+          display: block;
+          font-size: 2rem;
+          font-weight: bold;
+          color: #667eea;
+        }
+
+        .alert-stat .stat-label {
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .alerts-list {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .alert-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 1.5rem;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .alert-card.high {
+          background: #fff5f5;
+          border-left: 4px solid #dc3545;
+        }
+
+        .alert-card.medium {
+          background: #fffbf0;
+          border-left: 4px solid #ffc107;
+        }
+
+        .alert-card.low {
+          background: #f0f9ff;
+          border-left: 4px solid #17a2b8;
+        }
+
+        .alert-header {
+          display: flex;
+          gap: 1rem;
+          flex: 1;
+        }
+
+        .alert-icon {
+          font-size: 1.5rem;
+          margin-top: 0.25rem;
+        }
+
+        .alert-content h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .alert-content p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .alert-actions {
+          display: flex;
+          gap: 0.5rem;
+          flex-direction: column;
+        }
+
+        .resources-section {
+          max-width: 100%;
+        }
+
+        .resources-categories {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 2rem;
+          flex-wrap: wrap;
+        }
+
+        .category-btn {
+          padding: 0.5rem 1rem;
+          border: 1px solid #ddd;
+          background: white;
+          border-radius: 20px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          transition: all 0.3s;
+        }
+
+        .category-btn.active {
+          background: #667eea;
+          color: white;
+          border-color: #667eea;
+        }
+
+        .resources-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 3rem;
+        }
+
+        .resource-card {
+          display: flex;
+          gap: 1rem;
+          padding: 1.5rem;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .resource-icon {
+          font-size: 2rem;
+          margin-top: 0.25rem;
+        }
+
+        .resource-content {
+          flex: 1;
+        }
+
+        .resource-content h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .resource-content p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .resource-meta {
+          display: flex;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .resource-type,
+        .resource-category {
+          padding: 0.25rem 0.5rem;
+          background: #e9ecef;
+          color: #495057;
+          border-radius: 12px;
+          font-size: 0.8rem;
+        }
+
+        .resource-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .upcoming-webinars {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .webinar-list {
+          display: grid;
+          gap: 1.5rem;
+        }
+
+        .webinar-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .webinar-info h5 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .webinar-info p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .support-section {
+          max-width: 100%;
+        }
+
+        .support-overview {
+          display: flex;
+          gap: 2rem;
+          margin-bottom: 3rem;
+          flex-wrap: wrap;
+        }
+
+        .support-stat {
+          text-align: center;
+          padding: 1rem;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          min-width: 120px;
+        }
+
+        .support-stat .stat-number {
+          display: block;
+          font-size: 2rem;
+          font-weight: bold;
+          color: #667eea;
+        }
+
+        .support-stat .stat-label {
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .quick-help {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          margin-bottom: 2rem;
+        }
+
+        .help-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1rem;
+        }
+
+        .help-card {
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+          text-align: center;
+        }
+
+        .help-card h5 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .help-card p {
+          margin: 0.25rem 0 1rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .support-tickets {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tickets-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 2rem;
+        }
+
+        .tickets-list {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .ticket-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .ticket-info h5 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .ticket-info p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .ticket-meta {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+          margin-top: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .priority,
+        .status {
+          padding: 0.25rem 0.5rem;
+          border-radius: 12px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .priority.high { background: #f8d7da; color: #721c24; }
+        .priority.medium { background: #fff3cd; color: #856404; }
+        .priority.low { background: #d1ecf1; color: #0c5460; }
+
+        .status.open { background: #fff3cd; color: #856404; }
+        .status.in_progress { background: #d1ecf1; color: #0c5460; }
+        .status.resolved { background: #d4edda; color: #155724; }
+
+        .ticket-actions {
+          display: flex;
+          gap: 0.5rem;
+          flex-direction: column;
         }
 
         .btn {

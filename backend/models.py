@@ -16,7 +16,7 @@ class UserBase(BaseModel):
     id: str = Field(default_factory=_uuid)
     email: EmailStr
     name: str
-    role: str = Field(pattern=r"^(admin|instructor|student|auditor|career_coach|marketplace_manager|industry_reviewer|parent_guardian|alumni|proctor)$")
+    role: str = Field(pattern=r"^(super_admin|org_admin|dept_admin|instructor|teaching_assistant|content_author|student|auditor|parent_guardian|proctor|support_moderator|career_coach|marketplace_manager|industry_reviewer|alumni)$")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserCreate(BaseModel):

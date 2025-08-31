@@ -17,6 +17,11 @@ import GamificationHub from "./pages/GamificationHub";
 import ParentPortal from "./pages/ParentPortal";
 import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage from "./pages/SettingsPage";
+import ReviewerDashboard from "./pages/ReviewerDashboard";
+import IntegrationsHub from "./pages/IntegrationsHub";
+import AIEthicsDashboard from "./pages/AIEthicsDashboard";
+import ProctorDashboard from "./pages/ProctorDashboard";
+import AlumniNetwork from "./pages/AlumniNetwork";
 import { useWebSocket } from "./components/WebSocketManager";
 import NotificationSystem from "./components/NotificationSystem";
 
@@ -84,24 +89,68 @@ function AppContent() {
       { id: "wellbeing", label: "Well-being", icon: "🧘‍♀️" },
       { id: "marketplace", label: "Marketplace", icon: "🛒" },
       { id: "gamification", label: "Gamification", icon: "🎮" },
+      { id: "integrations", label: "Integrations", icon: "🚀" },
+      { id: "ai-ethics", label: "AI Ethics", icon: "🛡️" },
       { id: "settings", label: "Settings", icon: "⚙️" }
     ];
 
     const roleSpecificItems = {
-      admin: [
-        { id: "assessment", label: "Assessment", icon: "📝" }
+      super_admin: [
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "admin", label: "Admin Panel", icon: "⚙️" }
+      ],
+      org_admin: [
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "admin", label: "Admin Panel", icon: "⚙️" }
+      ],
+      dept_admin: [
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "admin", label: "Admin Panel", icon: "⚙️" }
       ],
       instructor: [
-        { id: "assessment", label: "Assessment", icon: "📝" }
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "courses", label: "My Courses", icon: "📚" }
+      ],
+      teaching_assistant: [
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "courses", label: "My Courses", icon: "📚" }
+      ],
+      content_author: [
+        { id: "courses", label: "Content Library", icon: "📝" }
       ],
       student: [
         { id: "assessment", label: "Assessment", icon: "📝" }
       ],
       auditor: [
-        { id: "assessment", label: "Assessment", icon: "📝" }
+        { id: "assessment", label: "Assessment", icon: "📝" },
+        { id: "reports", label: "Reports", icon: "📊" }
       ],
-      parent: [
+      parent_guardian: [
         { id: "parent", label: "Parent Portal", icon: "👨‍👩‍👧‍👦" }
+      ],
+      proctor: [
+        { id: "proctoring", label: "Proctoring", icon: "👁️" }
+      ],
+      support_moderator: [
+        { id: "support", label: "Support", icon: "🆘" }
+      ],
+      career_coach: [
+        { id: "career", label: "Career Services", icon: "🎯" }
+      ],
+      marketplace_manager: [
+        { id: "marketplace", label: "Marketplace", icon: "🛒" }
+      ],
+      industry_reviewer: [
+        { id: "reviews", label: "Reviews", icon: "⭐" }
+      ],
+      alumni: [
+        { id: "alumni", label: "Alumni Network", icon: "🎓" }
+      ],
+      external_reviewer: [
+        { id: "reviewer", label: "Reviewer Dashboard", icon: "🎯" }
+      ],
+      employer: [
+        { id: "reviewer", label: "Employer Dashboard", icon: "💼" }
       ]
     };
 
@@ -142,19 +191,37 @@ function AppContent() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={
-            me.role === "admin" ? <AdminDashboard /> :
-            me.role === "instructor" ? <InstructorDashboard me={me} /> :
+            ["super_admin", "org_admin", "dept_admin"].includes(me.role) ? <AdminDashboard /> :
+            ["instructor", "teaching_assistant"].includes(me.role) ? <InstructorDashboard me={me} /> :
             me.role === "student" ? <StudentDashboard me={me} /> :
             me.role === "auditor" ? <AuditorDashboard /> :
-            me.role === "parent" ? <ParentPortal /> :
+            me.role === "parent_guardian" ? <ParentPortal /> :
+            me.role === "proctor" ? <ProctorDashboard /> :
+            me.role === "support_moderator" ? <div>Support Dashboard Coming Soon</div> :
+            me.role === "career_coach" ? <div>Career Coach Dashboard Coming Soon</div> :
+            me.role === "marketplace_manager" ? <div>Marketplace Manager Dashboard Coming Soon</div> :
+            me.role === "industry_reviewer" ? <div>Industry Reviewer Dashboard Coming Soon</div> :
+            me.role === "external_reviewer" ? <ReviewerDashboard me={me} /> :
+            me.role === "employer" ? <ReviewerDashboard me={me} /> :
+            me.role === "alumni" ? <AlumniNetwork /> :
+            me.role === "content_author" ? <div>Content Author Dashboard Coming Soon</div> :
             <StudentDashboard me={me} />
           } />
           <Route path="/dashboard" element={
-            me.role === "admin" ? <AdminDashboard /> :
-            me.role === "instructor" ? <InstructorDashboard me={me} /> :
+            ["super_admin", "org_admin", "dept_admin"].includes(me.role) ? <AdminDashboard /> :
+            ["instructor", "teaching_assistant"].includes(me.role) ? <InstructorDashboard me={me} /> :
             me.role === "student" ? <StudentDashboard me={me} /> :
             me.role === "auditor" ? <AuditorDashboard /> :
-            me.role === "parent" ? <ParentPortal /> :
+            me.role === "parent_guardian" ? <ParentPortal /> :
+            me.role === "proctor" ? <div>Proctor Dashboard Coming Soon</div> :
+            me.role === "support_moderator" ? <div>Support Dashboard Coming Soon</div> :
+            me.role === "career_coach" ? <div>Career Coach Dashboard Coming Soon</div> :
+            me.role === "marketplace_manager" ? <div>Marketplace Manager Dashboard Coming Soon</div> :
+            me.role === "industry_reviewer" ? <div>Industry Reviewer Dashboard Coming Soon</div> :
+            me.role === "external_reviewer" ? <ReviewerDashboard me={me} /> :
+            me.role === "employer" ? <ReviewerDashboard me={me} /> :
+            me.role === "alumni" ? <div>Alumni Dashboard Coming Soon</div> :
+            me.role === "content_author" ? <div>Content Author Dashboard Coming Soon</div> :
             <StudentDashboard me={me} />
           } />
           <Route path="/instructor" element={<InstructorDashboard me={me} />} />
@@ -168,6 +235,9 @@ function AppContent() {
           <Route path="/parent" element={<ParentPortal />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage me={me} onProfileUpdate={setMe} />} />
+          <Route path="/reviewer" element={<ReviewerDashboard me={me} />} />
+          <Route path="/integrations" element={<IntegrationsHub />} />
+          <Route path="/ai-ethics" element={<AIEthicsDashboard me={me} />} />
         </Routes>
       </main>
 

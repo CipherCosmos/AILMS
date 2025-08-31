@@ -109,6 +109,12 @@ function StudentDashboard({ me }) {
   const [learningPath, setLearningPath] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("all");
+  const [studyPlan, setStudyPlan] = useState(null);
+  const [skillGaps, setSkillGaps] = useState([]);
+  const [careerReadiness, setCareerReadiness] = useState(null);
+  const [peerGroups, setPeerGroups] = useState([]);
+  const [learningInsights, setLearningInsights] = useState([]);
+  const [studyStreak, setStudyStreak] = useState(null);
   const sessionId = useSessionId(selected?.id);
 
   const refresh = () => api.get(`/courses`).then(r => setCourses(r.data));
@@ -118,6 +124,12 @@ function StudentDashboard({ me }) {
   useEffect(()=>{ api.get(`/notifications`).then(r=>setNotifications(r.data)).catch(()=>{setNotifications([])}); },[]);
   useEffect(()=>{ api.get(`/my_submissions`).then(r=>setMySubmissions(r.data)).catch(()=>{setMySubmissions([])}); },[]);
   useEffect(()=>{ api.get(`/courses/learning_path`).then(r=>setLearningPath(r.data)).catch(()=>{setLearningPath(null)}); },[me]);
+  useEffect(()=>{ api.get(`/student/study_plan`).then(r=>setStudyPlan(r.data)).catch(()=>{setStudyPlan(null)}); },[me]);
+  useEffect(()=>{ api.get(`/student/skill_gaps`).then(r=>setSkillGaps(r.data)).catch(()=>{setSkillGaps([])}); },[me]);
+  useEffect(()=>{ api.get(`/student/career_readiness`).then(r=>setCareerReadiness(r.data)).catch(()=>{setCareerReadiness(null)}); },[me]);
+  useEffect(()=>{ api.get(`/student/peer_groups`).then(r=>setPeerGroups(r.data)).catch(()=>{setPeerGroups([])}); },[me]);
+  useEffect(()=>{ api.get(`/student/learning_insights`).then(r=>setLearningInsights(r.data)).catch(()=>{setLearningInsights([])}); },[me]);
+  useEffect(()=>{ api.get(`/student/study_streak`).then(r=>setStudyStreak(r.data)).catch(()=>{setStudyStreak(null)}); },[me]);
 
   const enroll = async (c) => { await api.post(`/courses/${c.id}/enroll`); refresh(); };
   const open = async (c) => {
@@ -278,6 +290,30 @@ function StudentDashboard({ me }) {
           onClick={() => setActiveTab("profile")}
         >
           Profile
+        </button>
+        <button
+          className={activeTab === "insights" ? "active" : ""}
+          onClick={() => setActiveTab("insights")}
+        >
+          AI Insights
+        </button>
+        <button
+          className={activeTab === "studyplan" ? "active" : ""}
+          onClick={() => setActiveTab("studyplan")}
+        >
+          Study Plan
+        </button>
+        <button
+          className={activeTab === "career" ? "active" : ""}
+          onClick={() => setActiveTab("career")}
+        >
+          Career
+        </button>
+        <button
+          className={activeTab === "peers" ? "active" : ""}
+          onClick={() => setActiveTab("peers")}
+        >
+          Study Groups
         </button>
       </div>
 
@@ -588,6 +624,312 @@ function StudentDashboard({ me }) {
             // Refresh user data if needed
             window.location.reload();
           }} />
+        )}
+
+        {activeTab === "insights" && (
+          <div className="insights-section">
+            <h2>AI Learning Insights</h2>
+            <div className="insights-grid">
+              <div className="insight-card">
+                <h3>📊 Learning Patterns</h3>
+                <div className="insight-content">
+                  {learningInsights.map((insight, index) => (
+                    <div key={index} className="insight-item">
+                      <span className="insight-icon">{insight.icon}</span>
+                      <div className="insight-text">
+                        <h4>{insight.title}</h4>
+                        <p>{insight.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>🎯 Skill Gaps Analysis</h3>
+                <div className="skill-gaps">
+                  {skillGaps.map((gap, index) => (
+                    <div key={index} className="skill-gap-item">
+                      <div className="skill-info">
+                        <h4>{gap.skill}</h4>
+                        <p>Current: {gap.current_level}/10 | Target: {gap.target_level}/10</p>
+                      </div>
+                      <div className="gap-bar">
+                        <div
+                          className="gap-fill"
+                          style={{width: `${(gap.current_level / gap.target_level) * 100}%`}}
+                        ></div>
+                      </div>
+                      <button className="btn small">Improve</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>🔥 Study Streak</h3>
+                <div className="streak-display">
+                  <div className="streak-number">{studyStreak?.current_streak || 0}</div>
+                  <p>days in a row</p>
+                  <div className="streak-stats">
+                    <div className="stat">
+                      <span>{studyStreak?.longest_streak || 0}</span>
+                      <small>Longest</small>
+                    </div>
+                    <div className="stat">
+                      <span>{studyStreak?.total_days || 0}</span>
+                      <small>Total</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="insight-card">
+                <h3>📈 Progress Prediction</h3>
+                <div className="prediction-content">
+                  <div className="prediction-item">
+                    <h4>Estimated Completion</h4>
+                    <p>{analytics?.predicted_completion_date ?
+                      new Date(analytics.predicted_completion_date).toLocaleDateString() :
+                      "Calculating..."}</p>
+                  </div>
+                  <div className="prediction-item">
+                    <h4>Next Milestone</h4>
+                    <p>{analytics?.next_milestone || "Complete current course"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "studyplan" && (
+          <div className="studyplan-section">
+            <h2>AI-Powered Study Plan</h2>
+            {studyPlan ? (
+              <div className="study-plan-content">
+                <div className="plan-overview">
+                  <h3>Weekly Study Schedule</h3>
+                  <div className="plan-stats">
+                    <div className="stat">
+                      <span>{studyPlan.weekly_hours}</span>
+                      <small>Hours/Week</small>
+                    </div>
+                    <div className="stat">
+                      <span>{studyPlan.daily_sessions}</span>
+                      <small>Sessions/Day</small>
+                    </div>
+                    <div className="stat">
+                      <span>{studyPlan.focus_areas?.length || 0}</span>
+                      <small>Focus Areas</small>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="daily-schedule">
+                  <h3>Today's Schedule</h3>
+                  <div className="schedule-items">
+                    {studyPlan.today_schedule?.map((item, index) => (
+                      <div key={index} className="schedule-item">
+                        <div className="time-slot">{item.time}</div>
+                        <div className="activity">
+                          <h4>{item.activity}</h4>
+                          <p>{item.description}</p>
+                          <span className="duration">{item.duration} min</span>
+                        </div>
+                        <button className="btn small">Start</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="focus-areas">
+                  <h3>Focus Areas</h3>
+                  <div className="areas-grid">
+                    {studyPlan.focus_areas?.map((area, index) => (
+                      <div key={index} className="focus-area-card">
+                        <h4>{area.name}</h4>
+                        <p>{area.description}</p>
+                        <div className="progress">
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{width: `${area.progress}%`}}
+                            ></div>
+                          </div>
+                          <span>{area.progress}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <h3>Generating your study plan...</h3>
+                <p>Our AI is analyzing your learning patterns to create a personalized study plan.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "career" && (
+          <div className="career-section">
+            <h2>Career Readiness</h2>
+            {careerReadiness ? (
+              <div className="career-content">
+                <div className="readiness-score">
+                  <h3>Career Readiness Score</h3>
+                  <div className="score-circle">
+                    <div className="score-text">{careerReadiness.overall_score}/100</div>
+                  </div>
+                  <p>{careerReadiness.assessment}</p>
+                </div>
+
+                <div className="career-metrics">
+                  <div className="metric">
+                    <h4>Skills Match</h4>
+                    <div className="metric-value">{careerReadiness.skills_match}%</div>
+                    <p>Match with target careers</p>
+                  </div>
+                  <div className="metric">
+                    <h4>Experience Level</h4>
+                    <div className="metric-value">{careerReadiness.experience_level}/10</div>
+                    <p>Professional experience</p>
+                  </div>
+                  <div className="metric">
+                    <h4>Industry Fit</h4>
+                    <div className="metric-value">{careerReadiness.industry_fit}%</div>
+                    <p>Alignment with interests</p>
+                  </div>
+                </div>
+
+                <div className="career-recommendations">
+                  <h3>Recommended Career Paths</h3>
+                  <div className="careers-grid">
+                    {careerReadiness.recommended_careers?.map((career, index) => (
+                      <div key={index} className="career-card">
+                        <h4>{career.title}</h4>
+                        <p>{career.description}</p>
+                        <div className="career-stats">
+                          <span>Match: {career.match_score}%</span>
+                          <span>Salary: {career.avg_salary}</span>
+                        </div>
+                        <button className="btn small">Explore</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="skill-development">
+                  <h3>Skills to Develop</h3>
+                  <div className="skills-list">
+                    {careerReadiness.skills_to_develop?.map((skill, index) => (
+                      <div key={index} className="skill-item">
+                        <div className="skill-name">{skill.name}</div>
+                        <div className="skill-importance">Priority: {skill.priority}</div>
+                        <div className="skill-progress">
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{width: `${skill.current_level}%`}}
+                            ></div>
+                          </div>
+                        </div>
+                        <button className="btn small">Learn</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <h3>Assessing your career readiness...</h3>
+                <p>Complete more courses and assessments to get personalized career insights.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "peers" && (
+          <div className="peers-section">
+            <h2>Study Groups & Peer Learning</h2>
+            <div className="peers-content">
+              <div className="my-groups">
+                <h3>My Study Groups</h3>
+                <div className="groups-grid">
+                  {peerGroups.map((group, index) => (
+                    <div key={index} className="group-card">
+                      <div className="group-header">
+                        <h4>{group.name}</h4>
+                        <span className="member-count">{group.members} members</span>
+                      </div>
+                      <p>{group.description}</p>
+                      <div className="group-stats">
+                        <span>📚 {group.shared_courses} shared courses</span>
+                        <span>💬 {group.discussions} discussions</span>
+                      </div>
+                      <div className="group-actions">
+                        <button className="btn small">Join Discussion</button>
+                        <button className="btn small secondary">View Group</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="find-groups">
+                <h3>Find Study Groups</h3>
+                <div className="group-filters">
+                  <input
+                    type="text"
+                    placeholder="Search by subject..."
+                    className="search-input"
+                  />
+                  <select>
+                    <option value="">All Subjects</option>
+                    <option value="programming">Programming</option>
+                    <option value="math">Mathematics</option>
+                    <option value="science">Science</option>
+                  </select>
+                </div>
+                <div className="suggested-groups">
+                  <div className="group-card suggested">
+                    <h4>Advanced React Developers</h4>
+                    <p>Join fellow developers learning modern React patterns</p>
+                    <button className="btn small primary">Join Group</button>
+                  </div>
+                  <div className="group-card suggested">
+                    <h4>Machine Learning Study Group</h4>
+                    <p>Collaborative learning for ML enthusiasts</p>
+                    <button className="btn small primary">Join Group</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="peer-activities">
+                <h3>Recent Peer Activities</h3>
+                <div className="activities-list">
+                  <div className="activity-item">
+                    <div className="activity-icon">💬</div>
+                    <div className="activity-content">
+                      <h4>Sarah shared a study resource</h4>
+                      <p>Advanced algorithms cheat sheet in React Study Group</p>
+                      <small>2 hours ago</small>
+                    </div>
+                  </div>
+                  <div className="activity-item">
+                    <div className="activity-icon">🏆</div>
+                    <div className="activity-content">
+                      <h4>Mike completed a challenge</h4>
+                      <p>Earned "Problem Solver" badge in Coding Challenges</p>
+                      <small>5 hours ago</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1155,6 +1497,543 @@ function StudentDashboard({ me }) {
         .btn.small {
           padding: 0.5rem 1rem;
           font-size: 0.9rem;
+        }
+
+        .insights-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .insights-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 2rem;
+          margin-top: 2rem;
+        }
+
+        .insight-card {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .insight-card h3 {
+          margin: 0 0 1.5rem 0;
+          color: #2c3e50;
+        }
+
+        .insight-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .insight-icon {
+          font-size: 1.5rem;
+          margin-top: 0.25rem;
+        }
+
+        .insight-text h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .insight-text p {
+          margin: 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .skill-gaps {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .skill-gap-item {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .skill-info h4 {
+          margin: 0 0 0.25rem 0;
+          color: #2c3e50;
+        }
+
+        .skill-info p {
+          margin: 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .gap-bar {
+          flex: 1;
+          height: 8px;
+          background: #e9ecef;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
+        .gap-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #667eea, #764ba2);
+          border-radius: 4px;
+          transition: width 0.3s;
+        }
+
+        .streak-display {
+          text-align: center;
+          padding: 2rem;
+        }
+
+        .streak-number {
+          font-size: 4rem;
+          font-weight: bold;
+          color: #667eea;
+          margin-bottom: 0.5rem;
+        }
+
+        .streak-stats {
+          display: flex;
+          justify-content: center;
+          gap: 2rem;
+          margin-top: 1rem;
+        }
+
+        .streak-stats .stat {
+          text-align: center;
+        }
+
+        .streak-stats .stat span {
+          display: block;
+          font-size: 1.5rem;
+          font-weight: bold;
+          color: #2c3e50;
+        }
+
+        .streak-stats .stat small {
+          color: #6c757d;
+          font-size: 0.8rem;
+        }
+
+        .prediction-content {
+          display: grid;
+          gap: 1.5rem;
+        }
+
+        .prediction-item h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .prediction-item p {
+          margin: 0;
+          color: #6c757d;
+        }
+
+        .studyplan-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .study-plan-content {
+          display: grid;
+          gap: 2rem;
+          margin-top: 2rem;
+        }
+
+        .plan-overview {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .plan-stats {
+          display: flex;
+          justify-content: space-around;
+          margin-top: 1.5rem;
+        }
+
+        .plan-stats .stat {
+          text-align: center;
+        }
+
+        .plan-stats .stat span {
+          display: block;
+          font-size: 2rem;
+          font-weight: bold;
+          color: #667eea;
+        }
+
+        .plan-stats .stat small {
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .daily-schedule {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .schedule-items {
+          display: grid;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .schedule-item {
+          display: flex;
+          align-items: center;
+          gap: 1.5rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .time-slot {
+          font-weight: bold;
+          color: #667eea;
+          min-width: 80px;
+        }
+
+        .activity h4 {
+          margin: 0 0 0.25rem 0;
+          color: #2c3e50;
+        }
+
+        .activity p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .duration {
+          color: #28a745;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .focus-areas {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .areas-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 1.5rem;
+          margin-top: 1.5rem;
+        }
+
+        .focus-area-card {
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .focus-area-card h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .focus-area-card p {
+          margin: 0.5rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .focus-area-card .progress {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .career-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .career-content {
+          display: grid;
+          gap: 2rem;
+          margin-top: 2rem;
+        }
+
+        .readiness-score {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          text-align: center;
+        }
+
+        .score-circle {
+          width: 120px;
+          height: 120px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 1.5rem auto;
+        }
+
+        .score-text {
+          font-size: 2rem;
+          font-weight: bold;
+          color: white;
+        }
+
+        .career-metrics {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 2rem;
+        }
+
+        .metric {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          text-align: center;
+        }
+
+        .metric h4 {
+          margin: 0 0 1rem 0;
+          color: #2c3e50;
+        }
+
+        .metric-value {
+          font-size: 2.5rem;
+          font-weight: bold;
+          color: #667eea;
+          margin-bottom: 0.5rem;
+        }
+
+        .metric p {
+          margin: 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .career-recommendations {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .careers-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 1.5rem;
+          margin-top: 1.5rem;
+        }
+
+        .career-card {
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .career-card h4 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+
+        .career-card p {
+          margin: 0.5rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .career-stats {
+          display: flex;
+          justify-content: space-between;
+          margin: 1rem 0;
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .skill-development {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .skills-list {
+          display: grid;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .skill-item {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .skill-name {
+          flex: 1;
+          font-weight: 500;
+          color: #2c3e50;
+        }
+
+        .skill-importance {
+          color: #667eea;
+          font-size: 0.9rem;
+        }
+
+        .skill-progress {
+          flex: 1;
+          max-width: 150px;
+        }
+
+        .peers-section {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .peers-content {
+          display: grid;
+          gap: 2rem;
+          margin-top: 2rem;
+        }
+
+        .my-groups {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .groups-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+          gap: 1.5rem;
+          margin-top: 1.5rem;
+        }
+
+        .group-card {
+          padding: 1.5rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .group-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 1rem;
+        }
+
+        .group-header h4 {
+          margin: 0;
+          color: #2c3e50;
+        }
+
+        .member-count {
+          color: #667eea;
+          font-size: 0.9rem;
+        }
+
+        .group-stats {
+          display: flex;
+          gap: 1rem;
+          margin: 1rem 0;
+          font-size: 0.9rem;
+          color: #6c757d;
+        }
+
+        .group-actions {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 1rem;
+        }
+
+        .find-groups {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .group-filters {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+
+        .suggested-groups {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .group-card.suggested {
+          border: 2px solid #667eea;
+          background: white;
+        }
+
+        .peer-activities {
+          background: white;
+          padding: 2rem;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .activities-list {
+          display: grid;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .activity-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 1rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 8px;
+        }
+
+        .activity-icon {
+          font-size: 1.5rem;
+          margin-top: 0.25rem;
+        }
+
+        .activity-content h4 {
+          margin: 0 0 0.25rem 0;
+          color: #2c3e50;
+          font-size: 1rem;
+        }
+
+        .activity-content p {
+          margin: 0.25rem 0;
+          color: #6c757d;
+          font-size: 0.9rem;
+        }
+
+        .activity-content small {
+          color: #6c757d;
+          font-size: 0.8rem;
         }
 
         .enhanced-course-layout {
