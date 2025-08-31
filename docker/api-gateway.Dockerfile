@@ -1,24 +1,32 @@
-FROM nginx:alpine
+FROM python:3.11-slim
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+WORKDIR /app
 
-# Copy nginx configuration
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create SSL directory
-RUN mkdir -p /etc/nginx/ssl
+# Copy requirements and install Python dependencies
+COPY services/api-gateway/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy static files if any
-COPY frontend/build /usr/share/nginx/html
+# Copy shared modules and install their dependencies
+COPY shared/ ./shared/
+RUN pip install --no-cache-dir -r shared/requirements.txt
+
+# Copy service code
+COPY services/api-gateway/ ./services/api-gateway/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Expose port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Expose ports
-EXPOSE 80 443
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run the service
+CMD ["python", "services/api-gateway/main.py"]

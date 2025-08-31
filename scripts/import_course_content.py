@@ -172,8 +172,8 @@ async def import_course_content():
     print(f"🎯 Learning Objectives: Comprehensive AI education")
     print(f"🤖 AI Features: Adaptive learning, intelligent assessment, personalized recommendations")
     print(f"🎮 Gamification: Points, badges, leaderboards")
-    print(f"💬 Collaboration: Discussion forums, peer learning")
-    print(f"📊 Analytics: Detailed progress tracking and insights")
+    print(f"Collaboration: Discussion forums, peer learning")
+    print(f"Analytics: Detailed progress tracking and insights")
 
     print("\n🚀 Ready to use! Start the LMS server and access the course content.")
 
