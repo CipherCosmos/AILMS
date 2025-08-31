@@ -104,6 +104,10 @@ async def services_health():
 async def proxy_request(request: Request, path: str):
     """Proxy requests to appropriate services"""
 
+    # Handle /api prefix
+    if path.startswith("api/"):
+        path = path[4:]  # Remove "api/" prefix
+
     # Determine target service
     path_parts = path.split("/")
     if not path_parts or path_parts[0] == "":

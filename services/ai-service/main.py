@@ -56,10 +56,43 @@ def _safe_json_extract(text: str) -> dict:
         pass
     raise ValueError("Could not parse JSON from AI response")
 
-# Mock user authentication for service-to-service calls
+# JWT token validation for service-to-service calls
 async def _current_user(token: Optional[str] = None):
-    """Mock user authentication for service-to-service calls"""
-    return {"id": "user_123", "role": "instructor", "email": "user@example.com", "name": "Test User"}
+    """Validate JWT token for service-to-service calls"""
+    if not token:
+        raise HTTPException(401, "No authentication token provided")
+
+    try:
+        import jwt
+        from shared.config.config import settings
+
+        # Decode and validate JWT token
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+
+        # Verify token hasn't expired
+        from datetime import datetime, timezone
+        if payload.get("exp") and datetime.fromtimestamp(payload["exp"], timezone.utc) < datetime.now(timezone.utc):
+            raise HTTPException(401, "Token has expired")
+
+        # Get user from database to ensure they still exist
+        db = get_database()
+        user = await db.users.find_one({"_id": payload.get("sub")})
+        if not user:
+            raise HTTPException(401, "User not found")
+
+        return {
+            "id": user["_id"],
+            "role": user.get("role", "student"),
+            "email": user.get("email", ""),
+            "name": user.get("name", "")
+        }
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
+    except Exception as e:
+        raise HTTPException(401, f"Authentication failed: {str(e)}")
 
 def _require_role(user, allowed: list[str]):
     """Check if user has required role"""
