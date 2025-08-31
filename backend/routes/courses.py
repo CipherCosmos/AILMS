@@ -182,79 +182,144 @@ async def add_lesson(cid: str, body: LessonCreate, user=Depends(_current_user)):
 @courses_router.post("/ai/generate_course", response_model=Course)
 async def generate_course(req: GenerateCourseRequest, user=Depends(_current_user)):
     _require_role(user, ["admin", "instructor"])  # only creators
-    system_message = "You are an expert instructional designer. Output strict JSON."
-    prompt = f"""
-Create a complete course on the topic: {req.topic}
-Audience: {req.audience}
-Difficulty: {req.difficulty}
-Number of lessons: {req.lessons_count}
 
-Return ONLY JSON with this schema:
-{{
-  "title": string,
-  "audience": string,
-  "difficulty": string,
-  "lessons": [
-    {{"title": string, "content": string}} (exactly {req.lessons_count} items)
-  ],
-  "quiz": [
-    {{
-      "question": string,
-      "options": [
-        {{"text": string, "is_correct": boolean}},
-        {{"text": string, "is_correct": boolean}},
-        {{"text": string, "is_correct": boolean}},
-        {{"text": string, "is_correct": boolean}}
-      ],
-      "explanation": string
-    }}
-  ]
-}}
-Ensure exactly one option is correct per question.
-"""
     try:
-        model = _get_ai()
-        response = model.generate_content(prompt)
-        data = _safe_json_extract(response.text)
-    except Exception as e:
-        raise HTTPException(500, f"AI generation failed: {e}")
+        from enhanced_ai_generator import enhanced_ai_generator
 
-    # build model
-    lessons = [
-        CourseLesson(title=l.get("title", "Untitled"), content=l.get("content", ""))
-        for l in data.get("lessons", [])
-    ][: req.lessons_count]
-    quiz: List[QuizQuestion] = []
-    for q in data.get("quiz", [])[: max(3, req.lessons_count)]:
-        options = [
-            QuizOption(
-                text=o.get("text", ""), is_correct=bool(o.get("is_correct", False))
+        # Generate comprehensive course with enhanced AI
+        course_data = await enhanced_ai_generator.generate_comprehensive_course({
+            "topic": req.topic,
+            "audience": req.audience,
+            "difficulty": req.difficulty,
+            "lesson_count": req.lessons_count,
+            "include_practical": True,
+            "include_examples": True,
+            "include_assessments": True
+        })
+
+        # Convert to Course model format
+        lessons = []
+        for lesson_data in course_data.get("lessons", []):
+            lesson = CourseLesson(
+                title=lesson_data.get("title", "Untitled"),
+                content=lesson_data.get("content", ""),
+                estimated_time=lesson_data.get("duration_minutes", 90),
+                learning_objectives=lesson_data.get("learning_outcomes", [])
             )
-            for o in q.get("options", [])[:4]
-        ]
-        if sum(1 for o in options if o.is_correct) != 1 and options:
-            for i, o in enumerate(options):
-                o.is_correct = i == 0
-        quiz.append(
-            QuizQuestion(
-                question=q.get("question", ""),
-                options=options,
-                explanation=q.get("explanation") or "",
-            )
+            lessons.append(lesson)
+
+        # Convert quizzes
+        quiz = []
+        for quiz_data in course_data.get("quiz", []):
+            for q in quiz_data.get("questions", []):
+                options = [
+                    QuizOption(text=opt.get("text", ""), is_correct=opt.get("is_correct", False))
+                    for opt in q.get("options", [])
+                ]
+                if options:
+                    quiz_question = QuizQuestion(
+                        question=q.get("question", ""),
+                        options=options,
+                        explanation=q.get("explanation", "")
+                    )
+                    quiz.append(quiz_question)
+
+        # Create course
+        course = Course(
+            owner_id=user["id"],
+            title=course_data.get("title", req.topic),
+            audience=course_data.get("audience", req.audience),
+            difficulty=course_data.get("difficulty", req.difficulty),
+            lessons=lessons,
+            quiz=quiz,
         )
-    course = Course(
-        owner_id=user["id"],
-        title=data.get("title", req.topic),
-        audience=data.get("audience", req.audience),
-        difficulty=data.get("difficulty", req.difficulty),
-        lessons=lessons,
-        quiz=quiz,
-    )
-    doc = course.dict()
-    doc["_id"] = course.id
-    db = get_database()
-    await db.courses.insert_one(doc)
-    return course
+
+        doc = course.dict()
+        doc["_id"] = course.id
+        doc["generated_content"] = course_data  # Store full generated content
+
+        db = get_database()
+        await db.courses.insert_one(doc)
+        return course
+
+    except Exception as e:
+        # Fallback to original simple generation if enhanced fails
+        print(f"Enhanced AI generation failed: {e}, falling back to simple generation")
+
+        system_message = "You are an expert instructional designer. Output strict JSON."
+        prompt = f"""
+        Create a complete course on the topic: {req.topic}
+        Audience: {req.audience}
+        Difficulty: {req.difficulty}
+        Number of lessons: {req.lessons_count}
+
+        Return ONLY JSON with this schema:
+        {{
+          "title": string,
+          "audience": string,
+          "difficulty": string,
+          "lessons": [
+            {{"title": string, "content": string}} (exactly {req.lessons_count} items)
+          ],
+          "quiz": [
+            {{
+              "question": string,
+              "options": [
+                {{"text": string, "is_correct": boolean}},
+                {{"text": string, "is_correct": boolean}},
+                {{"text": string, "is_correct": boolean}},
+                {{"text": string, "is_correct": boolean}}
+              ],
+              "explanation": string
+            }}
+          ]
+        }}
+        Ensure exactly one option is correct per question.
+        """
+
+        try:
+            model = _get_ai()
+            response = model.generate_content(prompt)
+            data = _safe_json_extract(response.text)
+        except Exception as fallback_error:
+            raise HTTPException(500, f"AI generation failed: {fallback_error}")
+
+        # build model
+        lessons = [
+            CourseLesson(title=l.get("title", "Untitled"), content=l.get("content", ""))
+            for l in data.get("lessons", [])
+        ][: req.lessons_count]
+        quiz: List[QuizQuestion] = []
+        for q in data.get("quiz", [])[: max(3, req.lessons_count)]:
+            options = [
+                QuizOption(
+                    text=o.get("text", ""), is_correct=bool(o.get("is_correct", False))
+                )
+                for o in q.get("options", [])[:4]
+            ]
+            if sum(1 for o in options if o.is_correct) != 1 and options:
+                for i, o in enumerate(options):
+                    o.is_correct = i == 0
+            quiz.append(
+                QuizQuestion(
+                    question=q.get("question", ""),
+                    options=options,
+                    explanation=q.get("explanation") or "",
+                )
+            )
+        course = Course(
+            owner_id=user["id"],
+            title=data.get("title", req.topic),
+            audience=data.get("audience", req.audience),
+            difficulty=data.get("difficulty", req.difficulty),
+            lessons=lessons,
+            quiz=quiz,
+        )
+        doc = course.dict()
+        doc["_id"] = course.id
+        db = get_database()
+        await db.courses.insert_one(doc)
+        return course
 
 
 @courses_router.post("/lessons/{lesson_id}/quiz/generate", response_model=QuizQuestion)
@@ -1430,5 +1495,396 @@ async def get_learning_tips(request: dict, user=Depends(_current_user)):
         }
     except Exception as e:
         raise HTTPException(500, f"AI learning tips generation failed: {str(e)}")
+
+
+# Enhanced AI Features
+@courses_router.post("/ai/enhance_content")
+async def enhance_lesson_content(request: dict, user=Depends(_current_user)):
+    """AI-powered content enhancement for lessons"""
+    _require_role(user, ["admin", "instructor"])
+
+    lesson_content = request.get("content", "")
+    enhancement_type = request.get("type", "comprehensive")  # comprehensive, examples, practical, assessment
+    target_audience = request.get("audience", "general")
+    difficulty_level = request.get("difficulty", "intermediate")
+
+    prompts = {
+        "comprehensive": f"""
+        Enhance this lesson content to be more comprehensive and engaging:
+
+        Original Content: {lesson_content}
+        Target Audience: {target_audience}
+        Difficulty Level: {difficulty_level}
+
+        Please enhance by adding:
+        1. Real-world examples and case studies
+        2. Step-by-step explanations
+        3. Visual descriptions and analogies
+        4. Common misconceptions and clarifications
+        5. Practical applications
+        6. Assessment questions
+        7. Further reading suggestions
+
+        Make the content 2-3 times more detailed while maintaining clarity.
+        """,
+
+        "examples": f"""
+        Add comprehensive real-world examples to this lesson content:
+
+        Original Content: {lesson_content}
+        Target Audience: {target_audience}
+
+        Add:
+        1. 3-5 detailed case studies
+        2. Industry examples
+        3. Historical examples
+        4. Personal anecdotes
+        5. Success stories
+        6. Failure examples with lessons learned
+
+        Make examples relevant and memorable.
+        """,
+
+        "practical": f"""
+        Add practical exercises and implementations to this lesson:
+
+        Original Content: {lesson_content}
+        Difficulty Level: {difficulty_level}
+
+        Add:
+        1. Hands-on exercises
+        2. Code examples (if applicable)
+        3. Step-by-step tutorials
+        4. Practice problems with solutions
+        5. Project ideas
+        6. Implementation checklists
+
+        Focus on actionable, practical learning.
+        """,
+
+        "assessment": f"""
+        Create comprehensive assessment materials for this lesson:
+
+        Original Content: {lesson_content}
+        Difficulty Level: {difficulty_level}
+
+        Create:
+        1. Multiple choice questions (10-15)
+        2. Short answer questions (5-8)
+        3. Essay prompts (2-3)
+        4. Practical assessment tasks
+        5. Peer review criteria
+        6. Self-assessment checklists
+
+        Include answer keys and rubrics.
+        """
+    }
+
+    prompt = prompts.get(enhancement_type, prompts["comprehensive"])
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "enhanced_content": response.text,
+            "original_content": lesson_content,
+            "enhancement_type": enhancement_type,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Content enhancement failed: {str(e)}")
+
+
+@courses_router.post("/ai/personalize_course")
+async def personalize_course_content(request: dict, user=Depends(_current_user)):
+    """AI-powered course personalization based on learner profile"""
+    course_id = request.get("course_id")
+    learner_style = request.get("learning_style", "visual")
+    prior_knowledge = request.get("prior_knowledge", "beginner")
+    goals = request.get("goals", [])
+    pace_preference = request.get("pace_preference", "moderate")
+
+    # Get course data
+    course = await _require("courses", {"_id": course_id}, "Course not found")
+    if user["id"] not in course.get("enrolled_user_ids", []):
+        raise HTTPException(403, "Not enrolled in this course")
+
+    prompt = f"""
+    Personalize this course for a learner with these characteristics:
+
+    Course Title: {course.get('title', '')}
+    Learner Profile:
+    - Learning Style: {learner_style}
+    - Prior Knowledge: {prior_knowledge}
+    - Goals: {', '.join(goals) if goals else 'General understanding'}
+    - Preferred Pace: {pace_preference}
+
+    Original Lessons: {[f"{i+1}. {l.get('title', '')}" for i, l in enumerate(course.get('lessons', []))]}
+
+    Provide personalization recommendations:
+    1. Adjusted learning path with reordered lessons if needed
+    2. Additional resources based on learning style
+    3. Modified pace suggestions
+    4. Supplementary materials for knowledge gaps
+    5. Alternative explanations for complex topics
+    6. Practice recommendations
+    7. Assessment modifications
+
+    Make recommendations specific and actionable.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+
+        # Generate personalized lesson sequence
+        lessons = course.get('lessons', [])
+        personalized_lessons = []
+
+        for i, lesson in enumerate(lessons):
+            personalized_lesson = dict(lesson)
+            personalized_lesson["recommended_order"] = i + 1
+            personalized_lesson["estimated_time_adjusted"] = lesson.get("estimated_time", 60)
+
+            # Adjust time based on pace preference
+            if pace_preference == "slow":
+                personalized_lesson["estimated_time_adjusted"] = int(lesson.get("estimated_time", 60) * 1.5)
+            elif pace_preference == "fast":
+                personalized_lesson["estimated_time_adjusted"] = int(lesson.get("estimated_time", 60) * 0.8)
+
+            personalized_lessons.append(personalized_lesson)
+
+        return {
+            "personalization": response.text,
+            "personalized_lessons": personalized_lessons,
+            "learning_style": learner_style,
+            "recommended_pace": pace_preference,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Course personalization failed: {str(e)}")
+
+
+@courses_router.post("/ai/generate_interactive_content")
+async def generate_interactive_content(request: dict, user=Depends(_current_user)):
+    """Generate interactive content elements for lessons"""
+    _require_role(user, ["admin", "instructor"])
+
+    lesson_topic = request.get("topic", "")
+    content_type = request.get("content_type", "quiz")  # quiz, scenario, simulation, game
+    difficulty = request.get("difficulty", "intermediate")
+    duration_minutes = request.get("duration", 15)
+
+    content_prompts = {
+        "quiz": f"""
+        Create an interactive quiz for: {lesson_topic}
+        Difficulty: {difficulty}
+        Duration: {duration_minutes} minutes
+
+        Include:
+        1. 10-15 questions with immediate feedback
+        2. Progress tracking
+        3. Hint system
+        4. Score calculation with explanations
+        5. Retry mechanism
+        6. Performance analytics
+
+        Make it engaging and educational.
+        """,
+
+        "scenario": f"""
+        Create an interactive scenario-based learning experience for: {lesson_topic}
+        Difficulty: {difficulty}
+        Duration: {duration_minutes} minutes
+
+        Include:
+        1. Realistic problem scenario
+        2. Decision points with consequences
+        3. Multiple pathways based on choices
+        4. Reflection questions
+        5. Debriefing and learning outcomes
+        6. Alternative scenario branches
+
+        Focus on critical thinking and application.
+        """,
+
+        "simulation": f"""
+        Create a simulation exercise for: {lesson_topic}
+        Difficulty: {difficulty}
+        Duration: {duration_minutes} minutes
+
+        Include:
+        1. Simulated environment setup
+        2. Interactive controls and parameters
+        3. Real-time feedback system
+        4. Performance metrics
+        5. What-if analysis capabilities
+        6. Guided walkthrough for beginners
+
+        Make it safe to experiment and learn from mistakes.
+        """,
+
+        "game": f"""
+        Create a gamified learning experience for: {lesson_topic}
+        Difficulty: {difficulty}
+        Duration: {duration_minutes} minutes
+
+        Include:
+        1. Game mechanics (points, levels, achievements)
+        2. Progressive challenges
+        3. Leaderboards and competition
+        4. Rewards and badges system
+        5. Collaborative elements
+        6. Narrative-driven learning path
+
+        Make it fun while being educational.
+        """
+    }
+
+    prompt = content_prompts.get(content_type, content_prompts["quiz"])
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+        return {
+            "interactive_content": response.text,
+            "content_type": content_type,
+            "topic": lesson_topic,
+            "difficulty": difficulty,
+            "duration_minutes": duration_minutes,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Interactive content generation failed: {str(e)}")
+
+
+@courses_router.post("/ai/analyze_learning_patterns")
+async def analyze_learning_patterns(request: dict, user=Depends(_current_user)):
+    """AI-powered analysis of learning patterns and recommendations"""
+    course_id = request.get("course_id")
+    time_period_days = request.get("time_period_days", 30)
+
+    # Get user's learning data
+    db = get_database()
+    progress_data = await db.course_progress.find({"user_id": user["id"]}).to_list(100)
+    submissions = await db.submissions.find({"user_id": user["id"]}).sort("created_at", -1).limit(100).to_list(100)
+
+    # Analyze patterns
+    analysis_prompt = f"""
+    Analyze this learner's patterns and provide insights:
+
+    Progress Data: {len(progress_data)} course progress records
+    Submissions: {len(submissions)} total submissions
+    Time Period: Last {time_period_days} days
+
+    Recent Activity Summary:
+    - Courses in progress: {len([p for p in progress_data if not p.get('completed') and p.get('overall_progress', 0) > 0])}
+    - Completed courses: {len([p for p in progress_data if p.get('completed')])}
+    - Average progress: {sum([p.get('overall_progress', 0) for p in progress_data]) / len(progress_data) if progress_data else 0:.1f}%
+
+    Provide analysis on:
+    1. Learning consistency and patterns
+    2. Strengths and areas for improvement
+    3. Optimal learning times and duration
+    4. Recommended study strategies
+    5. Content type preferences
+    6. Progress prediction for next period
+    7. Personalized improvement suggestions
+
+    Be specific and actionable in recommendations.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(analysis_prompt)
+
+        # Generate specific recommendations
+        recommendations = []
+
+        if progress_data:
+            avg_progress = sum([p.get('overall_progress', 0) for p in progress_data]) / len(progress_data)
+            if avg_progress < 50:
+                recommendations.append("Consider breaking study sessions into shorter, focused intervals")
+            elif avg_progress > 80:
+                recommendations.append("You're doing great! Try challenging yourself with advanced topics")
+
+        return {
+            "analysis": response.text,
+            "recommendations": recommendations,
+            "metrics": {
+                "total_courses": len(progress_data),
+                "completed_courses": len([p for p in progress_data if p.get('completed')]),
+                "average_progress": avg_progress if progress_data else 0,
+                "total_submissions": len(submissions)
+            },
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Learning pattern analysis failed: {str(e)}")
+
+
+@courses_router.post("/ai/generate_adaptive_content")
+async def generate_adaptive_content(request: dict, user=Depends(_current_user)):
+    """Generate adaptive content based on learner performance"""
+    course_id = request.get("course_id")
+    current_performance = request.get("performance_data", {})
+    struggling_topics = request.get("struggling_topics", [])
+    mastered_topics = request.get("mastered_topics", [])
+
+    # Get course data
+    course = await _require("courses", {"_id": course_id}, "Course not found")
+
+    prompt = f"""
+    Generate adaptive learning content based on learner performance:
+
+    Course: {course.get('title', '')}
+    Current Performance: {current_performance}
+    Struggling Topics: {', '.join(struggling_topics) if struggling_topics else 'None identified'}
+    Mastered Topics: {', '.join(mastered_topics) if mastered_topics else 'None identified'}
+
+    Create adaptive content that:
+    1. Provides additional support for struggling topics
+    2. Offers advanced challenges for mastered topics
+    3. Includes remedial exercises for weak areas
+    4. Suggests enrichment activities for strong areas
+    5. Recommends personalized study plans
+    6. Identifies knowledge gaps and prerequisites
+    7. Suggests collaborative learning opportunities
+
+    Make the content personalized and immediately actionable.
+    """
+
+    try:
+        model = _get_ai()
+        response = model.generate_content(prompt)
+
+        # Generate specific adaptive recommendations
+        adaptive_plan = {
+            "remedial_content": [],
+            "advanced_content": [],
+            "practice_exercises": [],
+            "study_schedule": {},
+            "peer_learning": []
+        }
+
+        if struggling_topics:
+            adaptive_plan["remedial_content"] = [
+                f"Additional resources for {topic}" for topic in struggling_topics
+            ]
+
+        if mastered_topics:
+            adaptive_plan["advanced_content"] = [
+                f"Advanced challenges for {topic}" for topic in mastered_topics
+            ]
+
+        return {
+            "adaptive_content": response.text,
+            "adaptive_plan": adaptive_plan,
+            "struggling_topics": struggling_topics,
+            "mastered_topics": mastered_topics,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Adaptive content generation failed: {str(e)}")
 
 

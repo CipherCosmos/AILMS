@@ -110,7 +110,11 @@ class GenerateCourseRequest(BaseModel):
     topic: str
     audience: str
     difficulty: str = Field(pattern=r"^(beginner|intermediate|advanced)$")
-    lessons_count: int = Field(ge=1, le=20)
+    lessons_count: int = Field(ge=1, le=100)  # Increased from 20 to 100
+    include_practical: bool = True
+    include_examples: bool = True
+    include_assessments: bool = True
+    custom_instructions: Optional[str] = None
 
 # Assignment models
 class Assignment(BaseModel):
