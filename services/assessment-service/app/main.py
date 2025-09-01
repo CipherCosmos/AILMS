@@ -10,18 +10,17 @@ from shared.config.config import settings
 from shared.common.logging import get_logger
 from shared.common.database import get_database, close_connection
 from shared.common.cache import close_connection as close_cache
-from shared.common.middleware import (
-    create_cors_middleware,
-    RequestLoggingMiddleware,
-    RateLimitMiddleware
-)
+# Temporarily disabled middleware imports due to FastAPI version compatibility issues
+# from shared.common.middleware import (
+#     create_cors_middleware,
+#     RequestLoggingMiddleware,
+#     RateLimitMiddleware
+# )
 
-from .routes import (
-    assignments_router,
-    submissions_router,
-    grading_router,
-    health_router
-)
+from routes.assignments import router as assignments_router
+from routes.submissions import router as submissions_router
+from routes.grading import router as grading_router
+from routes.health import router as health_router
 
 # Initialize logger
 logger = get_logger("assessment-service")
@@ -64,13 +63,13 @@ def create_application() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Add middleware
-    app.add_middleware(create_cors_middleware())
-    app.add_middleware(RequestLoggingMiddleware)
+    # Temporarily disabled middleware due to import issues
+    # app.add_middleware(create_cors_middleware())
+    # app.add_middleware(RequestLoggingMiddleware)
 
     # Add rate limiting in production
-    if settings.environment == "production":
-        app.add_middleware(RateLimitMiddleware, requests_per_minute=200)
+    # if settings.environment == "production":
+    #     app.add_middleware(RateLimitMiddleware, requests_per_minute=200)
 
     # Include routers
     app.include_router(assignments_router, prefix="/assignments", tags=["Assignments"])

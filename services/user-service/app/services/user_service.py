@@ -9,8 +9,8 @@ from shared.common.logging import get_logger
 from shared.common.errors import NotFoundError, ValidationError, DatabaseError
 from shared.common.database import DatabaseOperations, _uuid
 
-from ..database.database import user_db
-from ..models import (
+from database.database import user_db
+from models import (
     UserProfile, UserProfileCreate, UserProfileUpdate,
     CareerProfile, CareerProfileCreate, CareerProfileUpdate,
     StudyPlan, StudyPlanCreate, StudyPlanUpdate,
@@ -18,7 +18,7 @@ from ..models import (
     StudySession, StudySessionCreate,
     LearningAnalytics, SkillGap, CareerReadiness
 )
-from ..config.config import user_service_settings
+from config.config import user_service_settings
 
 logger = get_logger("user-service")
 

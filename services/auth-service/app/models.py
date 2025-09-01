@@ -21,7 +21,7 @@ def validate_password_strength(password: str) -> dict:
 def sanitize_string(text: str) -> str:
     """Sanitize string input"""
     return text.strip()
-from .config import auth_settings
+from config import auth_settings
 
 
 class UserBase(BaseModel):

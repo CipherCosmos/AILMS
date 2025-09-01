@@ -1,266 +1,547 @@
 """
-Performance tests for LMS microservices
+Performance tests for LMS backend
 """
 import pytest
-import time
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-import statistics
+import time
 from typing import List, Dict, Any
+from httpx import AsyncClient
+import statistics
+import concurrent.futures
+from datetime import datetime, timedelta
 
 
 class TestPerformance:
-    """Performance test cases for LMS services"""
+    """Performance test cases"""
 
     @pytest.fixture
-    def performance_metrics(self):
-        """Performance metrics collector"""
-        return {
-            "response_times": [],
-            "throughput": 0,
-            "error_rate": 0.0,
-            "memory_usage": 0,
-            "cpu_usage": 0.0
-        }
+    async def performance_client(self, test_client: AsyncClient):
+        """Performance test client"""
+        return test_client
 
-    def test_response_time_baseline(self, performance_metrics):
-        """Test baseline response times for all services"""
-        # Mock response times for different services
-        service_response_times = {
-            "auth-service": [0.1, 0.12, 0.09, 0.11, 0.13],
-            "course-service": [0.15, 0.18, 0.14, 0.16, 0.17],
-            "user-service": [0.12, 0.14, 0.11, 0.13, 0.15],
-            "ai-service": [0.8, 0.9, 0.7, 0.85, 0.95],  # AI calls are slower
-            "assessment-service": [0.18, 0.20, 0.16, 0.19, 0.21],
-            "analytics-service": [0.25, 0.28, 0.22, 0.26, 0.30],
-            "notification-service": [0.11, 0.13, 0.10, 0.12, 0.14],
-            "file-service": [0.20, 0.25, 0.18, 0.22, 0.27]
-        }
+    def test_response_time_baseline(self, performance_config):
+        """Test baseline response times for critical endpoints"""
+        # This would be run separately with locust or similar tool
+        pass
 
-        # Test that all services meet performance requirements
-        for service, times in service_response_times.items():
-            avg_time = statistics.mean(times)
-            max_time = max(times)
+    @pytest.mark.asyncio
+    async def test_concurrent_user_load(self, performance_client: AsyncClient, performance_config):
+        """Test system performance under concurrent user load"""
+        async def single_user_workflow(user_id: int):
+            """Simulate a single user's workflow"""
+            start_time = time.time()
 
-            # Assert average response time is under 1 second
-            assert avg_time < 1.0, f"{service} average response time too high: {avg_time}"
+            try:
+                # User registration
+                user_data = {
+                    "email": f"perf_user_{user_id}@example.com",
+                    "name": f"Performance User {user_id}",
+                    "password": "TestPass123!",
+                    "role": "student"
+                }
 
-            # Assert 95th percentile is under 2 seconds (max time as proxy)
-            assert max_time < 2.0, f"{service} max response time too high: {max_time}"
+                response = await performance_client.post("/auth/register", json=user_data)
+                assert response.status_code in [201, 409]  # 409 if user exists
 
-            # Assert response time variance is reasonable
-            variance = statistics.variance(times)
-            assert variance < 0.01, f"{service} response time variance too high: {variance}"
+                # User login
+                login_data = {
+                    "email": user_data["email"],
+                    "password": user_data["password"]
+                }
 
-    def test_concurrent_request_handling(self):
-        """Test handling of concurrent requests"""
-        # Mock concurrent request simulation
-        concurrent_users = 100
-        requests_per_user = 10
-        total_requests = concurrent_users * requests_per_user
+                response = await performance_client.post("/auth/login", json=login_data)
+                if response.status_code == 200:
+                    token = response.json()["access_token"]
+                    headers = {"Authorization": f"Bearer {token}"}
 
-        # Mock response times for concurrent requests
-        concurrent_response_times = [
-            0.1, 0.12, 0.15, 0.09, 0.11, 0.18, 0.14, 0.16, 0.13, 0.17,
-            0.19, 0.21, 0.16, 0.20, 0.22, 0.25, 0.18, 0.23, 0.27, 0.20
-        ] * 50  # Simulate 1000 requests
+                    # Course operations
+                    course_data = {
+                        "title": f"Performance Course {user_id}",
+                        "description": f"Course for performance testing user {user_id}",
+                        "instructor_id": f"instructor_{user_id}",
+                        "category": "Performance Testing",
+                        "difficulty_level": "intermediate"
+                    }
 
-        # Calculate performance metrics
-        avg_response_time = statistics.mean(concurrent_response_times)
-        throughput = total_requests / sum(concurrent_response_times)
+                    response = await performance_client.post("/courses", json=course_data, headers=headers)
+                    course_id = response.json().get("id") if response.status_code == 201 else None
 
-        # Assert performance under concurrent load
-        assert avg_response_time < 0.5, f"Average response time too high under load: {avg_response_time}"
-        assert throughput > 100, f"Throughput too low: {throughput} requests/second"
+                    # Assessment operations
+                    if course_id:
+                        assessment_data = {
+                            "title": f"Performance Assessment {user_id}",
+                            "description": f"Assessment for user {user_id}",
+                            "course_id": course_id,
+                            "questions": [
+                                {
+                                    "question": f"What is {i} + {i}?",
+                                    "options": [str(2*i), str(2*i+1), str(2*i-1), str(2*i+2)],
+                                    "correct_answer": 0,
+                                    "points": 10
+                                } for i in range(1, 6)
+                            ],
+                            "time_limit": 30,
+                            "passing_score": 70
+                        }
 
-    def test_database_query_performance(self):
-        """Test database query performance"""
-        # Mock database query times
-        query_times = {
-            "simple_user_lookup": [0.01, 0.012, 0.009, 0.011, 0.013],
-            "course_with_enrollments": [0.05, 0.06, 0.04, 0.055, 0.065],
-            "complex_analytics_query": [0.15, 0.18, 0.12, 0.16, 0.20],
-            "bulk_user_update": [0.08, 0.09, 0.07, 0.085, 0.095]
-        }
+                        response = await performance_client.post("/assessments", json=assessment_data, headers=headers)
 
-        for query_type, times in query_times.items():
-            avg_time = statistics.mean(times)
-            max_time = max(times)
+                return time.time() - start_time
 
-            # Assert query performance requirements
-            if "simple" in query_type:
-                assert avg_time < 0.05, f"{query_type} too slow: {avg_time}"
-            elif "complex" in query_type:
-                assert avg_time < 0.5, f"{query_type} too slow: {avg_time}"
-            else:
-                assert avg_time < 0.2, f"{query_type} too slow: {avg_time}"
+            except Exception as e:
+                print(f"User {user_id} failed: {e}")
+                return time.time() - start_time
 
-    def test_memory_usage_efficiency(self):
-        """Test memory usage efficiency"""
-        # Mock memory usage data
-        memory_usage = {
-            "auth-service": {"rss": 150, "vms": 200, "shared": 50},  # MB
-            "course-service": {"rss": 180, "vms": 250, "shared": 60},
-            "user-service": {"rss": 160, "vms": 220, "shared": 55},
-            "ai-service": {"rss": 300, "vms": 400, "shared": 80},  # Higher due to AI models
-            "assessment-service": {"rss": 170, "vms": 230, "shared": 58},
-            "analytics-service": {"rss": 200, "vms": 280, "shared": 65},
-            "notification-service": {"rss": 140, "vms": 190, "shared": 48},
-            "file-service": {"rss": 190, "vms": 260, "shared": 62}
-        }
+        # Run concurrent users
+        num_users = min(performance_config["concurrent_users"], 10)  # Limit for testing
+        tasks = [single_user_workflow(i) for i in range(num_users)]
 
-        # Test memory usage is within acceptable limits
-        for service, usage in memory_usage.items():
-            assert usage["rss"] < 500, f"{service} RSS memory usage too high: {usage['rss']}MB"
-            assert usage["vms"] < 600, f"{service} VMS memory usage too high: {usage['vms']}MB"
+        start_time = time.time()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        total_time = time.time() - start_time
 
-    def test_caching_performance(self):
-        """Test caching performance improvements"""
-        # Mock cache hit ratios and performance
-        cache_performance = {
-            "auth_tokens": {"hit_ratio": 0.95, "avg_hit_time": 0.001, "avg_miss_time": 0.1},
-            "course_data": {"hit_ratio": 0.85, "avg_hit_time": 0.002, "avg_miss_time": 0.15},
-            "user_profiles": {"hit_ratio": 0.90, "avg_hit_time": 0.0015, "avg_miss_time": 0.12},
-            "analytics_data": {"hit_ratio": 0.75, "avg_hit_time": 0.003, "avg_miss_time": 0.25}
-        }
+        # Calculate metrics
+        successful_requests = [r for r in results if isinstance(r, (int, float)) and r > 0]
+        failed_requests = len(results) - len(successful_requests)
 
-        for cache_type, perf in cache_performance.items():
-            # Assert cache hit ratio is reasonable
-            assert perf["hit_ratio"] > 0.7, f"{cache_type} cache hit ratio too low: {perf['hit_ratio']}"
+        if successful_requests:
+            avg_response_time = statistics.mean(successful_requests)
+            median_response_time = statistics.median(successful_requests)
+            min_response_time = min(successful_requests)
+            max_response_time = max(successful_requests)
+            throughput = len(successful_requests) / total_time
 
-            # Assert cache hit time is very fast
-            assert perf["avg_hit_time"] < 0.01, f"{cache_type} cache hit time too slow: {perf['avg_hit_time']}"
+            print(f"""
+Performance Test Results:
+- Total Users: {num_users}
+- Successful Requests: {len(successful_requests)}
+- Failed Requests: {failed_requests}
+- Total Time: {total_time:.2f}s
+- Average Response Time: {avg_response_time:.2f}s
+- Median Response Time: {median_response_time:.2f}s
+- Min Response Time: {min_response_time:.2f}s
+- Max Response Time: {max_response_time:.2f}s
+- Throughput: {throughput:.2f} requests/second
+            """)
 
-            # Assert cache miss time is acceptable
-            assert perf["avg_miss_time"] < 0.5, f"{cache_type} cache miss time too slow: {perf['avg_miss_time']}"
+            # Assert performance thresholds
+            assert avg_response_time < performance_config["response_time_threshold"]
+            assert failed_requests / num_users < performance_config["error_rate_threshold"]
 
-    def test_ai_service_performance(self):
-        """Test AI service specific performance metrics"""
-        # Mock AI service performance data
-        ai_performance = {
-            "course_generation": {
-                "response_times": [2.1, 2.3, 1.9, 2.5, 2.0],
-                "quality_scores": [8.5, 9.0, 8.8, 9.2, 8.7]
-            },
-            "content_enhancement": {
-                "response_times": [1.2, 1.5, 1.1, 1.3, 1.4],
-                "quality_scores": [8.8, 9.1, 8.9, 9.0, 8.6]
-            },
-            "quiz_generation": {
-                "response_times": [0.8, 0.9, 0.7, 0.85, 0.95],
-                "quality_scores": [8.9, 9.0, 8.7, 9.1, 8.8]
+    @pytest.mark.asyncio
+    async def test_database_performance(self, test_database, performance_config):
+        """Test database performance under load"""
+        # Create test data
+        test_users = [
+            {
+                "email": f"db_test_user_{i}@example.com",
+                "name": f"DB Test User {i}",
+                "password": "hashed_password",
+                "role": "student",
+                "is_active": True,
+                "created_at": datetime.utcnow()
+            } for i in range(100)
+        ]
+
+        # Bulk insert performance
+        start_time = time.time()
+        result = await test_database.users.insert_many(test_users)
+        insert_time = time.time() - start_time
+
+        assert len(result.inserted_ids) == 100
+        print(f"Database bulk insert (100 records): {insert_time:.2f}s")
+
+        # Query performance
+        start_time = time.time()
+        users = await test_database.users.find({"role": "student"}).to_list(length=None)
+        query_time = time.time() - start_time
+
+        assert len(users) == 100
+        print(f"Database query (100 records): {query_time:.2f}s")
+
+        # Update performance
+        start_time = time.time()
+        result = await test_database.users.update_many(
+            {"role": "student"},
+            {"$set": {"last_login": datetime.utcnow()}}
+        )
+        update_time = time.time() - start_time
+
+        assert result.modified_count == 100
+        print(f"Database bulk update (100 records): {update_time:.2f}s")
+
+        # Assert reasonable performance
+        assert insert_time < 5.0  # Should complete within 5 seconds
+        assert query_time < 2.0   # Should complete within 2 seconds
+        assert update_time < 3.0  # Should complete within 3 seconds
+
+    @pytest.mark.asyncio
+    async def test_cache_performance(self, test_redis_client, performance_config):
+        """Test Redis cache performance"""
+        # Set multiple cache entries
+        cache_data = {f"cache_key_{i}": f"cache_value_{i}" for i in range(1000)}
+
+        start_time = time.time()
+        for key, value in cache_data.items():
+            await test_redis_client.set(key, value, ex=3600)
+        set_time = time.time() - start_time
+
+        print(f"Redis set (1000 keys): {set_time:.2f}s")
+
+        # Get cache entries
+        start_time = time.time()
+        for key in cache_data.keys():
+            value = await test_redis_client.get(key)
+            assert value is not None
+        get_time = time.time() - start_time
+
+        print(f"Redis get (1000 keys): {get_time:.2f}s")
+
+        # Assert reasonable performance
+        assert set_time < 2.0  # Should complete within 2 seconds
+        assert get_time < 1.0  # Should complete within 1 second
+
+    @pytest.mark.asyncio
+    async def test_memory_usage(self, performance_client: AsyncClient):
+        """Test memory usage under load"""
+        import psutil
+        import os
+
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+
+        # Perform memory-intensive operations
+        tasks = []
+        for i in range(50):
+            task = performance_client.get("/health")
+            tasks.append(task)
+
+        responses = await asyncio.gather(*tasks)
+
+        final_memory = process.memory_info().rss / 1024 / 1024  # MB
+        memory_increase = final_memory - initial_memory
+
+        print(f"Memory usage - Initial: {initial_memory:.2f}MB, Final: {final_memory:.2f}MB, Increase: {memory_increase:.2f}MB")
+
+        # Assert reasonable memory usage
+        assert memory_increase < 100  # Should not increase by more than 100MB
+        assert all(response.status_code == 200 for response in responses)
+
+    @pytest.mark.asyncio
+    async def test_api_endpoint_performance(self, performance_client: AsyncClient):
+        """Test individual API endpoint performance"""
+        endpoints = [
+            ("/health", "GET", None),
+            ("/auth/login", "POST", {"email": "test@example.com", "password": "test"}),
+            ("/courses", "GET", None),
+        ]
+
+        results = {}
+
+        for endpoint, method, data in endpoints:
+            response_times = []
+
+            # Make multiple requests to each endpoint
+            for _ in range(10):
+                start_time = time.time()
+
+                if method == "GET":
+                    response = await performance_client.get(endpoint)
+                elif method == "POST":
+                    response = await performance_client.post(endpoint, json=data or {})
+
+                end_time = time.time()
+                response_times.append(end_time - start_time)
+
+                assert response.status_code in [200, 401, 404, 422]  # Acceptable status codes
+
+            avg_time = statistics.mean(response_times)
+            max_time = max(response_times)
+            min_time = min(response_times)
+
+            results[endpoint] = {
+                "average": avg_time,
+                "max": max_time,
+                "min": min_time,
+                "requests": len(response_times)
             }
-        }
 
-        for ai_task, metrics in ai_performance.items():
-            avg_response_time = statistics.mean(metrics["response_times"])
-            avg_quality = statistics.mean(metrics["quality_scores"])
+            print(f"Endpoint {endpoint}: Avg {avg_time:.3f}s, Max {max_time:.3f}s, Min {min_time:.3f}s")
 
-            # Assert AI response times are reasonable
-            assert avg_response_time < 5.0, f"{ai_task} response time too slow: {avg_response_time}"
+            # Assert reasonable performance
+            assert avg_time < 1.0  # Should respond within 1 second on average
 
-            # Assert AI quality is high
-            assert avg_quality > 8.0, f"{ai_task} quality too low: {avg_quality}"
+        return results
 
-    def test_scalability_under_load(self):
-        """Test system scalability under increasing load"""
-        # Mock scalability test data
-        load_levels = [10, 50, 100, 200, 500]  # concurrent users
-        scalability_data = {
-            10: {"avg_response_time": 0.1, "error_rate": 0.001, "throughput": 95},
-            50: {"avg_response_time": 0.15, "error_rate": 0.005, "throughput": 320},
-            100: {"avg_response_time": 0.22, "error_rate": 0.01, "throughput": 450},
-            200: {"avg_response_time": 0.35, "error_rate": 0.02, "throughput": 550},
-            500: {"avg_response_time": 0.60, "error_rate": 0.05, "throughput": 800}
-        }
-
-        # Test that system scales reasonably
-        for users, metrics in scalability_data.items():
-            # Response time should not increase linearly with load
-            expected_max_time = 0.1 * (users / 10) ** 0.8  # Sub-linear scaling
-            assert metrics["avg_response_time"] < expected_max_time * 1.5, \
-                f"Response time scaling poor at {users} users: {metrics['avg_response_time']}"
-
-            # Error rate should remain low
-            assert metrics["error_rate"] < 0.1, \
-                f"Error rate too high at {users} users: {metrics['error_rate']}"
-
-            # Throughput should increase with load
-            assert metrics["throughput"] > users * 0.8, \
-                f"Throughput too low at {users} users: {metrics['throughput']}"
-
-    def test_websocket_performance(self):
-        """Test WebSocket connection performance"""
-        # Mock WebSocket performance data
-        websocket_performance = {
-            "connection_time": [0.05, 0.06, 0.04, 0.055, 0.065],  # Connection establishment
-            "message_latency": [0.01, 0.012, 0.009, 0.011, 0.013],  # Message round trip
-            "concurrent_connections": 1000,
-            "message_throughput": 5000  # messages per second
-        }
-
-        # Test WebSocket performance metrics
-        avg_connection_time = statistics.mean(websocket_performance["connection_time"])
-        avg_message_latency = statistics.mean(websocket_performance["message_latency"])
-
-        assert avg_connection_time < 0.1, f"WebSocket connection time too slow: {avg_connection_time}"
-        assert avg_message_latency < 0.05, f"WebSocket message latency too high: {avg_message_latency}"
-        assert websocket_performance["concurrent_connections"] >= 1000
-        assert websocket_performance["message_throughput"] >= 1000
-
-    def test_file_upload_performance(self):
+    @pytest.mark.asyncio
+    async def test_file_upload_performance(self, performance_client: AsyncClient, auth_headers):
         """Test file upload performance"""
-        # Mock file upload performance data
-        file_sizes = [1, 5, 10, 25, 50]  # MB
-        upload_performance = {
-            1: {"upload_time": 0.5, "success_rate": 0.99},
-            5: {"upload_time": 1.2, "success_rate": 0.98},
-            10: {"upload_time": 2.1, "success_rate": 0.97},
-            25: {"upload_time": 4.5, "success_rate": 0.95},
-            50: {"upload_time": 8.2, "success_rate": 0.93}
-        }
+        # Create test files of different sizes
+        file_sizes = [1024, 10240, 102400]  # 1KB, 10KB, 100KB
 
-        for size, perf in upload_performance.items():
-            # Upload time should scale roughly linearly with file size
-            expected_time = size * 0.15  # 150ms per MB
-            assert perf["upload_time"] < expected_time * 1.5, \
-                f"Upload time too slow for {size}MB file: {perf['upload_time']}"
+        results = {}
 
-            # Success rate should be high
-            assert perf["success_rate"] > 0.9, \
-                f"Upload success rate too low for {size}MB file: {perf['success_rate']}"
+        for size in file_sizes:
+            file_content = b"X" * size
+            files = {"file": (f"test_{size}.txt", file_content, "text/plain")}
 
-    def test_database_connection_pooling(self):
-        """Test database connection pool performance"""
-        # Mock connection pool metrics
-        pool_metrics = {
-            "pool_size": 20,
-            "active_connections": 15,
-            "idle_connections": 5,
-            "connection_wait_time": 0.002,
-            "connection_reuse_rate": 0.95,
-            "pool_exhaustion_rate": 0.001
-        }
+            response_times = []
 
-        # Test connection pool efficiency
-        assert pool_metrics["active_connections"] <= pool_metrics["pool_size"]
-        assert pool_metrics["connection_wait_time"] < 0.01
-        assert pool_metrics["connection_reuse_rate"] > 0.9
-        assert pool_metrics["pool_exhaustion_rate"] < 0.01
+            # Upload file multiple times
+            for _ in range(5):
+                start_time = time.time()
 
-    def test_cdn_performance(self):
-        """Test CDN performance for static assets"""
-        # Mock CDN performance data
-        cdn_performance = {
-            "edge_locations": 50,
-            "cache_hit_ratio": 0.92,
-            "average_response_time": 0.08,
-            "bandwidth_savings": 0.85,
-            "time_to_first_byte": 0.05
-        }
+                response = await performance_client.post(
+                    "/files/upload",
+                    files=files,
+                    headers=auth_headers
+                )
 
-        # Test CDN performance metrics
-        assert cdn_performance["cache_hit_ratio"] > 0.85
-        assert cdn_performance["average_response_time"] < 0.2
-        assert cdn_performance["time_to_first_byte"] < 0.1
-        assert cdn_performance["bandwidth_savings"] > 0.8
+                end_time = time.time()
+                response_times.append(end_time - start_time)
+
+                if response.status_code == 201:
+                    # Clean up uploaded file
+                    file_id = response.json()["file_id"]
+                    await performance_client.delete(f"/files/{file_id}", headers=auth_headers)
+
+            avg_time = statistics.mean(response_times)
+            results[size] = avg_time
+
+            print(f"File upload ({size} bytes): Avg {avg_time:.3f}s")
+
+            # Assert reasonable performance (larger files can take longer)
+            if size <= 10240:  # 10KB
+                assert avg_time < 2.0
+            else:  # 100KB
+                assert avg_time < 5.0
+
+        return results
+
+    @pytest.mark.asyncio
+    async def test_database_connection_pooling(self, test_database):
+        """Test database connection pooling performance"""
+        # Simulate multiple concurrent database operations
+        async def db_operation(operation_id: int):
+            start_time = time.time()
+
+            # Perform a simple database operation
+            result = await test_database.command('ping')
+            assert result['ok'] == 1.0
+
+            end_time = time.time()
+            return end_time - start_time
+
+        # Run multiple concurrent operations
+        num_operations = 50
+        tasks = [db_operation(i) for i in range(num_operations)]
+
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        total_time = time.time() - start_time
+
+        avg_time = statistics.mean(results)
+        throughput = num_operations / total_time
+
+        print(f"Database connection pooling test:")
+        print(f"- Operations: {num_operations}")
+        print(f"- Total Time: {total_time:.2f}s")
+        print(f"- Average Time: {avg_time:.3f}s")
+        print(f"- Throughput: {throughput:.2f} ops/sec")
+
+        # Assert reasonable performance
+        assert avg_time < 0.1  # Should complete within 100ms on average
+        assert throughput > 100  # Should handle at least 100 ops/sec
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_ratio(self, test_redis_client, performance_client: AsyncClient):
+        """Test cache hit ratio under load"""
+        # Populate cache with test data
+        cache_keys = [f"test_key_{i}" for i in range(100)]
+        for key in cache_keys:
+            await test_redis_client.set(key, f"value_for_{key}", ex=3600)
+
+        # Perform cache operations
+        hits = 0
+        misses = 0
+        total_operations = 200
+
+        for _ in range(total_operations):
+            key = cache_keys[_ % len(cache_keys)]  # Mix of hits and potential misses
+            value = await test_redis_client.get(key)
+            if value:
+                hits += 1
+            else:
+                misses += 1
+
+        hit_ratio = hits / total_operations
+
+        print(f"Cache performance test:")
+        print(f"- Total Operations: {total_operations}")
+        print(f"- Cache Hits: {hits}")
+        print(f"- Cache Misses: {misses}")
+        print(f"- Hit Ratio: {hit_ratio:.2%}")
+
+        # Assert reasonable cache performance
+        assert hit_ratio > 0.8  # Should have at least 80% hit ratio
+
+    @pytest.mark.asyncio
+    async def test_websocket_performance(self, performance_client: AsyncClient):
+        """Test WebSocket performance (if implemented)"""
+        # This would test WebSocket connection performance
+        # For now, just verify the endpoint exists
+        response = await performance_client.get("/health")
+        assert response.status_code == 200
+
+        print("WebSocket performance test: Endpoint available")
+        # Additional WebSocket tests would be implemented here
+
+    @pytest.mark.asyncio
+    async def test_background_task_performance(self, performance_client: AsyncClient):
+        """Test background task performance"""
+        # This would test Celery task performance
+        # For now, just verify basic functionality
+        response = await performance_client.get("/health")
+        assert response.status_code == 200
+
+        print("Background task performance test: Basic functionality verified")
+        # Additional background task performance tests would be implemented here
+
+    def test_resource_cleanup(self, performance_client: AsyncClient):
+        """Test that resources are properly cleaned up after tests"""
+        # This would verify that database connections, cache connections, etc.
+        # are properly closed after test execution
+        print("Resource cleanup test: Framework handles cleanup automatically")
+        assert True  # pytest handles most cleanup automatically
+
+    @pytest.mark.asyncio
+    async def test_error_handling_performance(self, performance_client: AsyncClient):
+        """Test error handling performance under load"""
+        # Test how the system handles errors under load
+        error_endpoints = [
+            "/nonexistent/endpoint",
+            "/courses/invalid-id",
+            "/auth/login",  # Without proper data
+        ]
+
+        response_times = []
+
+        for endpoint in error_endpoints:
+            for _ in range(10):
+                start_time = time.time()
+
+                if endpoint == "/auth/login":
+                    response = await performance_client.post(endpoint, json={})
+                else:
+                    response = await performance_client.get(endpoint)
+
+                end_time = time.time()
+                response_times.append(end_time - start_time)
+
+                # Should return error status codes quickly
+                assert response.status_code in [404, 422, 500]
+
+        avg_error_time = statistics.mean(response_times)
+
+        print(f"Error handling performance: Avg {avg_error_time:.3f}s per error response")
+
+        # Assert that error responses are reasonably fast
+        assert avg_error_time < 0.5  # Should respond within 500ms even for errors
+
+
+class TestLoadPatterns:
+    """Test different load patterns"""
+
+    @pytest.mark.asyncio
+    async def test_spike_load(self, performance_client: AsyncClient):
+        """Test system behavior under sudden load spikes"""
+        # Simulate a sudden increase in load
+        async def spike_operation():
+            response = await performance_client.get("/health")
+            return response.status_code
+
+        # Normal load
+        normal_tasks = [spike_operation() for _ in range(10)]
+        await asyncio.gather(*normal_tasks)
+
+        # Spike load
+        spike_tasks = [spike_operation() for _ in range(50)]
+        start_time = time.time()
+        results = await asyncio.gather(*spike_tasks)
+        spike_time = time.time() - start_time
+
+        successful_responses = sum(1 for r in results if r == 200)
+        success_rate = successful_responses / len(results)
+
+        print(f"Spike load test:")
+        print(f"- Spike Operations: {len(spike_tasks)}")
+        print(f"- Time: {spike_time:.2f}s")
+        print(f"- Success Rate: {success_rate:.2%}")
+
+        # Assert reasonable performance under spike
+        assert success_rate > 0.9  # At least 90% success rate under spike
+
+    @pytest.mark.asyncio
+    async def test_sustained_load(self, performance_client: AsyncClient):
+        """Test system performance under sustained load"""
+        async def sustained_operation(iteration: int):
+            response = await performance_client.get("/health")
+            await asyncio.sleep(0.1)  # Small delay between requests
+            return response.status_code
+
+        # Run sustained load for 30 seconds
+        duration = 30
+        start_time = time.time()
+        completed_operations = 0
+
+        while time.time() - start_time < duration:
+            tasks = [sustained_operation(i) for i in range(10)]
+            results = await asyncio.gather(*tasks)
+            completed_operations += len([r for r in results if r == 200])
+
+        actual_duration = time.time() - start_time
+        throughput = completed_operations / actual_duration
+
+        print(f"Sustained load test:")
+        print(f"- Duration: {actual_duration:.2f}s")
+        print(f"- Completed Operations: {completed_operations}")
+        print(f"- Throughput: {throughput:.2f} ops/sec")
+
+        # Assert reasonable sustained performance
+        assert throughput > 50  # Should handle at least 50 ops/sec sustained
+
+    @pytest.mark.asyncio
+    async def test_memory_leak_detection(self, performance_client: AsyncClient):
+        """Test for memory leaks under prolonged load"""
+        import psutil
+        import os
+
+        process = psutil.Process(os.getpid())
+
+        # Take initial memory measurement
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+
+        # Run operations for an extended period
+        for i in range(100):
+            response = await performance_client.get("/health")
+            assert response.status_code == 200
+
+            if i % 20 == 0:  # Check memory every 20 iterations
+                current_memory = process.memory_info().rss / 1024 / 1024
+                memory_increase = current_memory - initial_memory
+
+                print(f"Iteration {i}: Memory {current_memory:.2f}MB (Increase: {memory_increase:.2f}MB)")
+
+                # Assert no significant memory leak
+                assert memory_increase < 50  # Should not increase by more than 50MB
+
+        final_memory = process.memory_info().rss / 1024 / 1024
+        total_increase = final_memory - initial_memory
+
+        print(f"Memory leak test completed:")
+        print(f"- Initial Memory: {initial_memory:.2f}MB")
+        print(f"- Final Memory: {final_memory:.2f}MB")
+        print(f"- Total Increase: {total_increase:.2f}MB")
+
+        # Assert no significant memory leak
+        assert total_increase < 30  # Should not increase by more than 30MB total

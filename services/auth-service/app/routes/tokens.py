@@ -9,9 +9,9 @@ import jwt
 from shared.config.config import settings
 from shared.common.logging import get_logger
 from shared.common.errors import ValidationError, AuthenticationError
-from ..services.auth_service import AuthService
-from ..models import UserPrivate
-from ..database import auth_db
+from services.auth_service import AuthService
+from models import UserPrivate
+from database import auth_db
 
 logger = get_logger("auth-service")
 router = APIRouter()

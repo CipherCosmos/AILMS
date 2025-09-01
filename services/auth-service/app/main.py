@@ -9,13 +9,13 @@ from shared.config.config import settings
 from shared.common.logging import get_logger
 from shared.common.monitoring import metrics_collector
 
-from .config import auth_settings
-from .database import auth_db
-from .middleware import AuthMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
-from .routes.auth import router as auth_router
-from .routes.users import router as users_router
-from .routes.tokens import router as tokens_router
-from .routes.health import router as health_router
+from config import auth_settings
+from database import auth_db
+from middleware import AuthMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+from routes.auth import router as auth_router
+from routes.users import router as users_router
+from routes.tokens import router as tokens_router
+from routes.health import router as health_router
 
 logger = get_logger("auth-service")
 

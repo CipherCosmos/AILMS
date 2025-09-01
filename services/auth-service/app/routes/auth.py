@@ -6,8 +6,8 @@ from typing import Optional
 
 from shared.common.logging import get_logger
 from shared.common.errors import ValidationError, AuthenticationError
-from ..services.auth_service import AuthService
-from ..models import (
+from services.auth_service import AuthService
+from models import (
     UserPublic,
     UserPrivate,
     TokenPair,

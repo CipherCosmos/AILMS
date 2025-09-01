@@ -12,11 +12,11 @@ from shared.common.database import get_database, close_connection
 from shared.common.cache import close_connection as close_cache
 # from .middleware.auth_middleware import RequestLoggingMiddleware
 
-from .routes.profiles import router as profiles_router
-from .routes.career import router as career_router
-from .routes.analytics import router as analytics_router
-from .routes.achievements import router as achievements_router
-from .routes.health import router as health_router
+from routes.profiles import router as profiles_router
+from routes.career import router as career_router
+from routes.analytics import router as analytics_router
+from routes.achievements import router as achievements_router
+from routes.health import router as health_router
 
 # Initialize logger
 logger = get_logger("user-service")

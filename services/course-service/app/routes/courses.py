@@ -6,58 +6,17 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 
 from shared.common.auth import get_current_user, require_admin
-from shared.common.database import DatabaseOperations, _require
 from shared.common.errors import ValidationError, NotFoundError, AuthorizationError
 from shared.common.logging import get_logger
-from shared.models.models import Course, CourseCreate, CourseUpdate
+
+from services.course_service import course_service
+from models import Course, CourseCreate, CourseUpdate, CourseStats, EnrollmentResponse
 
 logger = get_logger("course-service")
 router = APIRouter()
-courses_db = DatabaseOperations("courses")
-
-async def _current_user(token: Optional[str] = None):
-    """Get current authenticated user"""
-    if not token:
-        raise HTTPException(401, "No authentication token provided")
-
-    try:
-        import jwt
-        from shared.config.config import settings
-
-        # Decode and validate JWT token
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-
-        # Verify token hasn't expired
-        if payload.get("exp") and datetime.fromtimestamp(payload["exp"], timezone.utc) < datetime.now(timezone.utc):
-            raise HTTPException(401, "Token has expired")
-
-        # Get user from database
-        users_db = DatabaseOperations("users")
-        user = await users_db.find_one({"_id": payload.get("sub")})
-        if not user:
-            raise HTTPException(401, "User not found")
-
-        return {
-            "id": user["_id"],
-            "role": user.get("role", "student"),
-            "email": user.get("email", ""),
-            "name": user.get("name", "")
-        }
-
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid token")
-    except Exception as e:
-        raise HTTPException(401, f"Authentication failed: {str(e)}")
-
-def _require_role(user, allowed: list[str]):
-    """Check if user has required role"""
-    if user.get("role") not in allowed:
-        raise HTTPException(403, "Insufficient permissions")
 
 @router.post("/", response_model=Course)
-async def create_course(body: CourseCreate, user=Depends(_current_user)):
+async def create_course(body: CourseCreate, user: dict = Depends(get_current_user)):
     """
     Create a new course.
 
@@ -66,29 +25,12 @@ async def create_course(body: CourseCreate, user=Depends(_current_user)):
     - **difficulty**: Difficulty level
     """
     try:
-        # Check permissions
-        _require_role(user, ["admin", "instructor"])
+        # Check permissions (would be handled in service layer)
+        if user["role"] not in ["admin", "instructor"]:
+            raise AuthorizationError("Only instructors and admins can create courses")
 
-        # Create course
-        course = Course(
-            owner_id=user["id"],
-            title=body.title,
-            audience=body.audience,
-            difficulty=body.difficulty,
-        )
-
-        doc = course.dict()
-        doc["_id"] = course.id
-        doc["created_at"] = datetime.now(timezone.utc)
-
-        await courses_db.insert_one(doc)
-
-        logger.info("Course created", extra={
-            "course_id": course.id,
-            "title": course.title,
-            "owner_id": user["id"]
-        })
-
+        # Create course using service layer
+        course = await course_service.create_course(body, user["id"])
         return course
 
     except (ValidationError, AuthorizationError):
@@ -106,7 +48,7 @@ async def list_courses(
     limit: int = 50,
     offset: int = 0,
     published_only: bool = False,
-    user=Depends(_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     List courses with visibility filtering.
@@ -117,62 +59,19 @@ async def list_courses(
     """
     try:
         # Build query based on user permissions
-        if user["role"] in ["admin", "auditor"]:
-            query = {}
-            if published_only:
-                query["published"] = True
-        else:
-            query = {
-                "$or": [
-                    {"published": True},
-                    {"owner_id": user["id"]},
-                    {"enrolled_user_ids": user["id"]},
-                ]
-            }
+        query = {}
+        if published_only:
+            query["published"] = True
 
-        # Get courses
-        courses = await courses_db.find_many(
-            query,
-            sort=[("created_at", -1)],
+        # List courses using service layer
+        courses = await course_service.list_courses(
+            query=query,
+            user_id=user["id"],
             limit=limit,
-            skip=offset
+            offset=offset
         )
 
-        # Convert to Course models with legacy data handling
-        valid_courses = []
-        for doc in courses:
-            # Handle legacy data
-            if "_id" in doc and "id" not in doc:
-                doc["id"] = doc["_id"]
-
-            # Skip courses missing required fields
-            if not doc.get("title") and not doc.get("topic"):
-                continue
-            if not doc.get("owner_id"):
-                continue
-
-            # Handle legacy courses that have 'topic' instead of 'title'
-            if not doc.get("title") and doc.get("topic"):
-                doc["title"] = doc["topic"]
-
-            # Ensure all required fields have defaults
-            doc.setdefault("audience", "General")
-            doc.setdefault("difficulty", "beginner")
-            doc.setdefault("lessons", [])
-            doc.setdefault("quiz", [])
-            doc.setdefault("published", False)
-            doc.setdefault("enrolled_user_ids", [])
-
-            try:
-                valid_courses.append(Course(**doc))
-            except Exception as e:
-                logger.warning("Skipping invalid course", extra={
-                    "course_id": doc.get("id", "unknown"),
-                    "error": str(e)
-                })
-                continue
-
-        return valid_courses
+        return courses
 
     except Exception as e:
         logger.error("Failed to list courses", extra={
@@ -182,28 +81,19 @@ async def list_courses(
         raise HTTPException(500, "Failed to retrieve courses")
 
 @router.get("/{course_id}", response_model=Course)
-async def get_course(course_id: str, user=Depends(_current_user)):
+async def get_course(course_id: str, user: dict = Depends(get_current_user)):
     """
     Get a specific course.
 
     - **course_id**: Course identifier
     """
     try:
-        # Get course document
-        doc = await courses_db.find_one({"_id": course_id})
-        if not doc:
-            raise NotFoundError("Course not found")
+        # Get course using service layer
+        course = await course_service.get_course(course_id, user["id"])
+        if not course:
+            raise NotFoundError("Course", course_id)
 
-        # Check visibility permissions
-        if not (
-            doc.get("published")
-            or doc.get("owner_id") == user["id"]
-            or user["role"] in ["admin", "auditor"]
-            or user["id"] in doc.get("enrolled_user_ids", [])
-        ):
-            raise AuthorizationError("Not authorized to view this course")
-
-        return Course(**doc)
+        return course
 
     except (NotFoundError, AuthorizationError):
         raise
@@ -215,7 +105,7 @@ async def get_course(course_id: str, user=Depends(_current_user)):
         raise HTTPException(500, "Failed to retrieve course")
 
 @router.put("/{course_id}", response_model=Course)
-async def update_course(course_id: str, body: CourseUpdate, user=Depends(_current_user)):
+async def update_course(course_id: str, body: CourseUpdate, user: dict = Depends(get_current_user)):
     """
     Update a course.
 
@@ -223,29 +113,9 @@ async def update_course(course_id: str, body: CourseUpdate, user=Depends(_curren
     - **body**: Update data
     """
     try:
-        # Get existing course
-        doc = await courses_db.find_one({"_id": course_id})
-        if not doc:
-            raise NotFoundError("Course not found")
-
-        # Check permissions
-        if not (user["role"] in ["admin", "instructor"] or doc.get("owner_id") == user["id"]):
-            raise AuthorizationError("Not authorized to update this course")
-
-        # Prepare updates
-        changes = {k: v for k, v in body.dict().items() if v is not None}
-        if changes:
-            changes["updated_at"] = datetime.now(timezone.utc)
-            await courses_db.update_one({"_id": course_id}, changes)
-            doc.update(changes)
-
-            logger.info("Course updated", extra={
-                "course_id": course_id,
-                "updated_by": user["id"],
-                "updated_fields": list(changes.keys())
-            })
-
-        return Course(**doc)
+        # Update course using service layer
+        updated_course = await course_service.update_course(course_id, body, user["id"])
+        return updated_course
 
     except (NotFoundError, AuthorizationError):
         raise
@@ -256,33 +126,19 @@ async def update_course(course_id: str, body: CourseUpdate, user=Depends(_curren
         })
         raise HTTPException(500, "Failed to update course")
 
-@router.post("/{course_id}/enroll")
-async def enroll_course(course_id: str, user=Depends(_current_user)):
+@router.post("/{course_id}/enroll", response_model=EnrollmentResponse)
+async def enroll_course(course_id: str, user: dict = Depends(get_current_user)):
     """
     Enroll user in a course.
 
     - **course_id**: Course identifier
     """
     try:
-        # Verify course exists
-        course = await courses_db.find_one({"_id": course_id})
-        if not course:
-            raise NotFoundError("Course not found")
+        # Enroll user using service layer
+        result = await course_service.enroll_user(course_id, user["id"])
+        return result
 
-        # Add user to enrolled list
-        await courses_db.update_one(
-            {"_id": course_id},
-            {"$addToSet": {"enrolled_user_ids": user["id"]}}
-        )
-
-        logger.info("User enrolled in course", extra={
-            "course_id": course_id,
-            "user_id": user["id"]
-        })
-
-        return {"status": "enrolled", "message": "Successfully enrolled in course"}
-
-    except NotFoundError:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error("Failed to enroll in course", extra={
@@ -292,33 +148,19 @@ async def enroll_course(course_id: str, user=Depends(_current_user)):
         })
         raise HTTPException(500, "Failed to enroll in course")
 
-@router.delete("/{course_id}/enroll")
-async def unenroll_course(course_id: str, user=Depends(_current_user)):
+@router.delete("/{course_id}/enroll", response_model=EnrollmentResponse)
+async def unenroll_course(course_id: str, user: dict = Depends(get_current_user)):
     """
     Unenroll user from a course.
 
     - **course_id**: Course identifier
     """
     try:
-        # Verify course exists
-        course = await courses_db.find_one({"_id": course_id})
-        if not course:
-            raise NotFoundError("Course not found")
+        # Unenroll user using service layer
+        result = await course_service.unenroll_user(course_id, user["id"])
+        return result
 
-        # Remove user from enrolled list
-        await courses_db.update_one(
-            {"_id": course_id},
-            {"$pull": {"enrolled_user_ids": user["id"]}}
-        )
-
-        logger.info("User unenrolled from course", extra={
-            "course_id": course_id,
-            "user_id": user["id"]
-        })
-
-        return {"status": "unenrolled", "message": "Successfully unenrolled from course"}
-
-    except NotFoundError:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error("Failed to unenroll from course", extra={
@@ -328,8 +170,8 @@ async def unenroll_course(course_id: str, user=Depends(_current_user)):
         })
         raise HTTPException(500, "Failed to unenroll from course")
 
-@router.get("/stats/summary")
-async def get_course_stats(user=Depends(_current_user)):
+@router.get("/stats/summary", response_model=CourseStats)
+async def get_course_stats(user: dict = Depends(get_current_user)):
     """
     Get course statistics summary.
     """
@@ -338,21 +180,9 @@ async def get_course_stats(user=Depends(_current_user)):
         if user["role"] not in ["admin", "instructor"]:
             raise AuthorizationError("Only instructors can access course statistics")
 
-        # Get course counts
-        total_courses = await courses_db.count_documents({})
-        published_courses = await courses_db.count_documents({"published": True})
-
-        # Get enrollment statistics
-        courses = await courses_db.find_many({})
-        total_enrollments = sum(len(course.get("enrolled_user_ids", [])) for course in courses)
-
-        return {
-            "total_courses": total_courses,
-            "published_courses": published_courses,
-            "draft_courses": total_courses - published_courses,
-            "total_enrollments": total_enrollments,
-            "average_enrollment_per_course": round(total_enrollments / max(total_courses, 1), 1)
-        }
+        # Get course stats using service layer
+        stats = await course_service.get_course_stats(user["id"])
+        return stats
 
     except AuthorizationError:
         raise

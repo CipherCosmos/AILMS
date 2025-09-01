@@ -7,9 +7,9 @@ from typing import List, Optional
 
 from shared.common.logging import get_logger
 from shared.common.errors import ValidationError, AuthenticationError
-from ..services.auth_service import AuthService
-from ..database import auth_db
-from ..models import UserPublic, UserPrivate, UserUpdate
+from services.auth_service import AuthService
+from database import auth_db
+from models import UserPublic, UserPrivate, UserUpdate
 
 logger = get_logger("auth-service")
 router = APIRouter()

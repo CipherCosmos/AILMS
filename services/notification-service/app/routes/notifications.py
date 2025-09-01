@@ -1,20 +1,22 @@
 """
 Notification management routes for Notification Service
 """
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Optional
+from fastapi import APIRouter, Depends
+from typing import Optional
 
-from shared.common.auth import get_current_user, require_admin
-from shared.common.database import DatabaseOperations
 from shared.common.errors import ValidationError, NotFoundError, AuthorizationError
 from shared.common.logging import get_logger
 
+from utils.notification_utils import get_current_user, require_role
+from services.notification_service import notification_service
+from models import (
+    NotificationCreate, Notification, NotificationStats
+)
+
 logger = get_logger("notification-service")
 router = APIRouter()
-notifications_db = DatabaseOperations("notifications")
 
-@router.post("/")
+@router.post("/", response_model=dict)
 async def create_notification(
     notification_data: dict,
     current_user: dict = Depends(get_current_user)
@@ -28,49 +30,35 @@ async def create_notification(
     - **type**: Notification type (system, course, assignment, etc.)
     """
     try:
-        user_id = notification_data.get("user_id")
-        title = notification_data.get("title")
-        message = notification_data.get("message")
-        notification_type = notification_data.get("type", "system")
-
-        if not user_id:
-            raise ValidationError("User ID is required", "user_id")
-        if not title:
-            raise ValidationError("Title is required", "title")
-        if not message:
-            raise ValidationError("Message is required", "message")
-
         # Check permissions (only admins/instructors can send notifications to others)
+        user_id = notification_data.get("user_id")
         if user_id != current_user["id"] and current_user["role"] not in ["admin", "instructor"]:
             raise AuthorizationError("Not authorized to send notifications to other users")
 
-        from shared.database.database import _uuid
-        notification = {
-            "_id": _uuid(),
-            "user_id": user_id,
-            "title": title,
-            "message": message,
-            "type": notification_type,
-            "read": False,
-            "created_by": current_user["id"],
-            "created_at": datetime.now(timezone.utc)
-        }
+        # Create notification using service layer
+        create_data = NotificationCreate(
+            recipient_id=user_id,
+            title=notification_data.get("title", ""),
+            message=notification_data.get("message", ""),
+            type=notification_data.get("type", "system"),
+            sender_id=current_user["id"],
+            course_id=notification_data.get("course_id"),
+            assignment_id=notification_data.get("assignment_id"),
+            priority=notification_data.get("priority", "medium")
+        )
 
-        await notifications_db.insert_one(notification)
+        notification = await notification_service.create_notification(create_data)
 
         logger.info("Notification created", extra={
-            "notification_id": notification["_id"],
+            "notification_id": notification.id,
             "user_id": user_id,
-            "type": notification_type,
+            "type": notification_data.get("type", "system"),
             "created_by": current_user["id"]
         })
 
-        # TODO: Send real-time notification via WebSocket
-        # await send_websocket_notification(user_id, notification)
-
         return {
             "status": "created",
-            "notification_id": notification["_id"],
+            "notification_id": notification.id,
             "message": "Notification created successfully"
         }
 
@@ -81,12 +69,12 @@ async def create_notification(
             "user_id": notification_data.get("user_id"),
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to create notification")
 
 @router.get("/")
 async def get_notifications(
     limit: int = 50,
-    offset: int = 0,
     unread_only: bool = False,
     current_user: dict = Depends(get_current_user)
 ):
@@ -94,31 +82,28 @@ async def get_notifications(
     Get user's notifications.
 
     - **limit**: Maximum number of notifications to return
-    - **offset**: Number of notifications to skip
     - **unread_only**: Return only unread notifications
     """
     try:
-        # Build query
-        query = {"user_id": current_user["id"]}
-        if unread_only:
-            query["read"] = False
-
-        # Get notifications
-        notifications = await notifications_db.find_many(
-            query,
-            sort=[("created_at", -1)],
+        # Use service layer
+        from models import NotificationStatus
+        status = NotificationStatus.READ if not unread_only else None
+        notifications = await notification_service.get_user_notifications(
+            current_user["id"],
             limit=limit,
-            skip=offset
+            status=status
         )
 
-        # Get total count
-        total_count = len(await notifications_db.find_many(query))
+        logger.info("Notifications retrieved", extra={
+            "user_id": current_user["id"],
+            "count": len(notifications),
+            "unread_only": unread_only
+        })
 
         return {
-            "notifications": notifications,
-            "total": total_count,
+            "notifications": [notification.dict() for notification in notifications],
+            "total": len(notifications),
             "limit": limit,
-            "offset": offset,
             "unread_only": unread_only
         }
 
@@ -127,9 +112,10 @@ async def get_notifications(
             "user_id": current_user["id"],
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to retrieve notifications")
 
-@router.get("/{notification_id}")
+@router.get("/{notification_id}", response_model=Notification)
 async def get_notification(
     notification_id: str,
     current_user: dict = Depends(get_current_user)
@@ -140,23 +126,28 @@ async def get_notification(
     - **notification_id**: Notification identifier
     """
     try:
-        notification = await notifications_db.find_one({
-            "_id": notification_id,
+        # Use service layer
+        notification = await notification_service.get_notification(notification_id)
+
+        # Verify ownership
+        if notification.recipient_id != current_user["id"]:
+            raise AuthorizationError("Not authorized to view this notification")
+
+        logger.info("Notification retrieved", extra={
+            "notification_id": notification_id,
             "user_id": current_user["id"]
         })
 
-        if not notification:
-            raise NotFoundError("Notification", notification_id)
-
         return notification
 
-    except NotFoundError:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error("Failed to get notification", extra={
             "notification_id": notification_id,
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to retrieve notification")
 
 @router.put("/{notification_id}/read")
@@ -170,22 +161,8 @@ async def mark_as_read(
     - **notification_id**: Notification identifier
     """
     try:
-        # Update notification
-        result = await notifications_db.update_one(
-            {"_id": notification_id, "user_id": current_user["id"]},
-            {"$set": {"read": True, "read_at": datetime.now(timezone.utc)}}
-        )
-
-        if not result:
-            # Check if notification exists
-            notification = await notifications_db.find_one({
-                "_id": notification_id,
-                "user_id": current_user["id"]
-            })
-            if not notification:
-                raise NotFoundError("Notification", notification_id)
-            # Already read
-            return {"status": "already_read"}
+        # Use service layer
+        notification = await notification_service.mark_as_read(notification_id, current_user["id"])
 
         logger.info("Notification marked as read", extra={
             "notification_id": notification_id,
@@ -194,13 +171,14 @@ async def mark_as_read(
 
         return {"status": "marked_as_read"}
 
-    except NotFoundError:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error("Failed to mark notification as read", extra={
             "notification_id": notification_id,
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to mark notification as read")
 
 @router.put("/mark-all-read")
@@ -209,22 +187,12 @@ async def mark_all_as_read(current_user: dict = Depends(get_current_user)):
     Mark all user's notifications as read.
     """
     try:
-        # Update all unread notifications
-        unread_notifications = await notifications_db.find_many({
-            "user_id": current_user["id"],
-            "read": False
-        })
-        marked_count = 0
-        for notification in unread_notifications:
-            await notifications_db.update_one(
-                {"_id": notification["_id"]},
-                {"$set": {"read": True, "read_at": datetime.now(timezone.utc)}}
-            )
-            marked_count += 1
+        # Use service layer
+        marked_count = await notification_service.mark_all_as_read(current_user["id"])
 
         logger.info("All notifications marked as read", extra={
             "user_id": current_user["id"],
-            "marked_count": result.modified_count
+            "marked_count": marked_count
         })
 
         return {
@@ -237,6 +205,7 @@ async def mark_all_as_read(current_user: dict = Depends(get_current_user)):
             "user_id": current_user["id"],
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to mark notifications as read")
 
 @router.delete("/{notification_id}")
@@ -250,13 +219,10 @@ async def delete_notification(
     - **notification_id**: Notification identifier
     """
     try:
-        # Delete notification
-        result = await notifications_db.delete_one({
-            "_id": notification_id,
-            "user_id": current_user["id"]
-        })
+        # Use service layer
+        success = await notification_service.delete_notification(notification_id, current_user["id"])
 
-        if not result:
+        if not success:
             raise NotFoundError("Notification", notification_id)
 
         logger.info("Notification deleted", extra={
@@ -266,45 +232,37 @@ async def delete_notification(
 
         return {"status": "deleted"}
 
-    except NotFoundError:
+    except (NotFoundError, AuthorizationError):
         raise
     except Exception as e:
         logger.error("Failed to delete notification", extra={
             "notification_id": notification_id,
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to delete notification")
 
-@router.get("/stats/summary")
+@router.get("/stats/summary", response_model=NotificationStats)
 async def get_notification_stats(current_user: dict = Depends(get_current_user)):
     """
     Get notification statistics for the current user.
     """
     try:
-        # Get counts
-        total_count = len(await notifications_db.find_many({"user_id": current_user["id"]}))
-        unread_count = len(await notifications_db.find_many({
-            "user_id": current_user["id"],
-            "read": False
-        }))
+        # Use service layer
+        stats = await notification_service.get_notification_stats(current_user["id"])
 
-        # Get recent notifications (last 7 days)
-        seven_days_ago = datetime.now(timezone.utc).timestamp() - (7 * 24 * 60 * 60)
-        recent_count = len(await notifications_db.find_many({
+        logger.info("Notification stats retrieved", extra={
             "user_id": current_user["id"],
-            "created_at": {"$gte": datetime.fromtimestamp(seven_days_ago, timezone.utc)}
-        }))
+            "total_sent": stats.total_sent,
+            "total_read": stats.total_read
+        })
 
-        return {
-            "total_notifications": total_count,
-            "unread_notifications": unread_count,
-            "recent_notifications": recent_count,
-            "read_percentage": round(((total_count - unread_count) / max(total_count, 1)) * 100, 1)
-        }
+        return stats
 
     except Exception as e:
         logger.error("Failed to get notification stats", extra={
             "user_id": current_user["id"],
             "error": str(e)
         })
+        from fastapi import HTTPException
         raise HTTPException(500, "Failed to retrieve notification statistics")

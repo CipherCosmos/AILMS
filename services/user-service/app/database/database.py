@@ -9,7 +9,7 @@ import json
 from shared.config.config import settings
 from shared.common.logging import get_logger
 from shared.common.errors import DatabaseError, NotFoundError
-from ..config.config import user_service_settings
+from config.config import user_service_settings
 
 # Simple cache implementation for now
 class SimpleCache:

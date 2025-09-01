@@ -162,8 +162,8 @@ class DatabaseOperations:
 
             # Ensure _id is set
             if "_id" not in document:
-                from shared.database.database import _uuid
-                document["_id"] = document.get("id", _uuid())
+                import uuid
+                document["_id"] = document.get("id", str(uuid.uuid4()))
 
             result = await collection.insert_one(document)
             logger.info("Document inserted", extra={
@@ -249,3 +249,21 @@ async def health_check() -> Dict[str, Any]:
 async def close_connection():
     """Close database connection"""
     await db_manager.disconnect()
+
+def _uuid() -> str:
+    """Generate a unique UUID string"""
+    import uuid
+    return str(uuid.uuid4())
+
+async def _require(collection_name: str, query: Dict[str, Any], error_message: str = "Document not found") -> Dict[str, Any]:
+    """Helper function to get a document and raise NotFoundError if not found"""
+    from shared.common.errors import NotFoundError
+
+    db = await get_database()
+    collection = db[collection_name]
+    document = await collection.find_one(query)
+
+    if not document:
+        raise NotFoundError(collection_name, str(query))
+
+    return document

@@ -1,15 +1,13 @@
 """
-Pytest configuration and fixtures for LMS microservices tests
+Pytest configuration and fixtures for LMS backend testing
 """
 import pytest
 import asyncio
-from typing import Dict, Any
-import sys
-import os
-
-# Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
+from typing import Dict, Any, AsyncGenerator
+from httpx import AsyncClient
+import motor.motor_asyncio
+import redis.asyncio as redis
+from fastapi import FastAPI
 from shared.config.config import settings
 
 
@@ -22,67 +20,131 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def test_settings():
-    """Test settings fixture"""
-    # Override settings for testing
-    original_env = settings.environment
-    settings.environment = "test"
-    yield settings
-    settings.environment = original_env
+async def test_mongo_client():
+    """MongoDB test client fixture"""
+    client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_url)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="session")
+async def test_redis_client():
+    """Redis test client fixture"""
+    client = redis.Redis.from_url(settings.redis_url)
+    yield client
+    await client.close()
+
+
+@pytest.fixture(scope="session")
+async def test_database(test_mongo_client):
+    """Test database fixture"""
+    db = test_mongo_client["lms_test"]
+    yield db
+    # Clean up after tests
+    await test_mongo_client.drop_database("lms_test")
 
 
 @pytest.fixture
-def sample_user_data():
-    """Sample user data for testing"""
+async def test_app():
+    """Test FastAPI application fixture"""
+    from services.api_gateway.app.main import create_application
+    app = create_application()
+    yield app
+
+
+@pytest.fixture
+async def test_client(test_app):
+    """HTTP test client fixture"""
+    async with AsyncClient(app=test_app, base_url="http://testserver") as client:
+        yield client
+
+
+@pytest.fixture
+async def auth_headers(test_client):
+    """Authentication headers fixture"""
+    # This would typically create a test user and return auth headers
+    return {"Authorization": "Bearer test-token"}
+
+
+@pytest.fixture
+async def test_user_data():
+    """Test user data fixture"""
     return {
-        "id": "test_user_123",
         "email": "test@example.com",
         "name": "Test User",
+        "password": "TestPassword123!",
         "role": "student"
     }
 
 
 @pytest.fixture
-def sample_course_data():
-    """Sample course data for testing"""
+async def test_course_data():
+    """Test course data fixture"""
     return {
-        "id": "test_course_123",
         "title": "Test Course",
-        "audience": "beginners",
-        "difficulty": "intermediate",
-        "owner_id": "test_user_123"
+        "description": "A test course for testing purposes",
+        "instructor_id": "test-instructor-id",
+        "category": "Test Category",
+        "difficulty_level": "intermediate"
     }
 
 
 @pytest.fixture
-def sample_lesson_data():
-    """Sample lesson data for testing"""
+async def test_assessment_data():
+    """Test assessment data fixture"""
     return {
-        "id": "test_lesson_123",
-        "title": "Test Lesson",
-        "content": "This is test lesson content",
-        "course_id": "test_course_123"
+        "title": "Test Assessment",
+        "description": "A test assessment",
+        "course_id": "test-course-id",
+        "questions": [
+            {
+                "question": "What is 2+2?",
+                "options": ["3", "4", "5", "6"],
+                "correct_answer": 1,
+                "points": 10
+            }
+        ],
+        "time_limit": 30,
+        "passing_score": 70
     }
 
 
 @pytest.fixture
-def auth_headers(sample_user_data):
-    """Mock authentication headers"""
-    return {
-        "Authorization": f"Bearer test_token_{sample_user_data['id']}",
-        "X-User-ID": sample_user_data["id"],
-        "X-User-Role": sample_user_data["role"]
-    }
-
-
-@pytest.fixture
-def mock_jwt_token():
-    """Mock JWT token for testing"""
-    return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature"
-
-
-@pytest.fixture(autouse=True)
-def cleanup_test_data():
-    """Cleanup test data after each test"""
+async def cleanup_test_data(test_database):
+    """Fixture to clean up test data after each test"""
     yield
-    # Add cleanup logic here if needed
+    # Clean up collections
+    collections = await test_database.list_collection_names()
+    for collection in collections:
+        await test_database[collection].delete_many({})
+
+
+@pytest.fixture(scope="session")
+def performance_config():
+    """Performance test configuration"""
+    return {
+        "concurrent_users": 100,
+        "test_duration": 60,  # seconds
+        "ramp_up_time": 10,   # seconds
+        "response_time_threshold": 2.0,  # seconds
+        "error_rate_threshold": 0.05     # 5%
+    }
+
+
+@pytest.fixture(scope="session")
+def security_config():
+    """Security test configuration"""
+    return {
+        "sql_injection_payloads": [
+            "' OR '1'='1",
+            "'; DROP TABLE users; --",
+            "' UNION SELECT * FROM users; --"
+        ],
+        "xss_payloads": [
+            "<script>alert('XSS')</script>",
+            "<img src=x onerror=alert('XSS')>",
+            "javascript:alert('XSS')"
+        ],
+        "rate_limit_threshold": 100,  # requests per minute
+        "auth_bypass_attempts": 10
+    }

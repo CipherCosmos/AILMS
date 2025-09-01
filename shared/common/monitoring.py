@@ -3,7 +3,12 @@ Advanced monitoring and metrics system for LMS microservices
 """
 import asyncio
 import time
-import psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 import json
 from typing import Dict, List, Any, Optional, Callable
 from collections import defaultdict, deque
@@ -253,6 +258,13 @@ class SystemMonitor:
 
     async def get_system_stats(self) -> Dict[str, Any]:
         """Get system resource statistics"""
+        if not PSUTIL_AVAILABLE:
+            return {
+                "error": "psutil not available",
+                "message": "System monitoring requires psutil package",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
         try:
             # CPU usage
             cpu_percent = psutil.cpu_percent(interval=1)
@@ -298,6 +310,13 @@ class SystemMonitor:
 
     async def get_process_stats(self) -> Dict[str, Any]:
         """Get current process statistics"""
+        if not PSUTIL_AVAILABLE:
+            return {
+                "error": "psutil not available",
+                "message": "Process monitoring requires psutil package",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
         try:
             process = psutil.Process()
             memory_info = process.memory_info()

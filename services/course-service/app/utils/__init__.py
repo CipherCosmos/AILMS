@@ -1,0 +1,1 @@
+# Course service utilities package

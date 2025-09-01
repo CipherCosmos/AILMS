@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from shared.common.database import get_database
 from shared.common.logging import get_logger
 from shared.common.cache import cache_manager
-from .config import auth_settings
+from config import auth_settings
 
 logger = get_logger("auth-service-db")
 

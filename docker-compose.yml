@@ -25,7 +25,10 @@ services:
       - user-service
       - ai-service
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/api-gateway/app:.
     networks:
       - lms-network
     restart: unless-stopped
@@ -34,7 +37,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    working_dir: /app/services/api-gateway/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     # Security configurations
     security_opt:
       - no-new-privileges:true
@@ -61,7 +65,9 @@ services:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/auth-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -75,7 +81,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+    working_dir: /app/services/auth-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
 
   # Course Service
   course-service:
@@ -88,7 +95,9 @@ services:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - PYTHONPATH=/app:/app/services/course-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -102,7 +111,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--workers", "2"]
+    working_dir: /app/services/course-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
 
   # User Service
   user-service:
@@ -114,7 +124,10 @@ services:
     environment:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/user-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -128,7 +141,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8003", "--workers", "2"]
+    working_dir: /app/services/user-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
 
   # AI Service
   ai-service:
@@ -141,7 +155,9 @@ services:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - PYTHONPATH=/app:/app/services/ai-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -155,7 +171,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8004", "--workers", "2"]
+    working_dir: /app/services/ai-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
 
   # Assessment Service
   assessment-service:
@@ -168,7 +185,9 @@ services:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - PYTHONPATH=/app:/app/services/assessment-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -182,7 +201,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005", "--workers", "2"]
+    working_dir: /app/services/assessment-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8005", "--reload"]
 
   # Analytics Service
   analytics-service:
@@ -194,7 +214,10 @@ services:
     environment:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/analytics-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -208,7 +231,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006", "--workers", "2"]
+    working_dir: /app/services/analytics-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8006", "--reload"]
 
   # Notification Service
   notification-service:
@@ -220,7 +244,10 @@ services:
     environment:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/notification-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -234,7 +261,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8007", "--workers", "2"]
+    working_dir: /app/services/notification-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8007", "--reload"]
 
   # File Service
   file-service:
@@ -246,7 +274,10 @@ services:
     environment:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONPATH=/app:/app/services/file-service/app:.
     depends_on:
       - mongodb
       - redis
@@ -261,7 +292,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8008", "--workers", "2"]
+    working_dir: /app/services/file-service/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
 
   # Redis Cache & Message Queue
   redis:
@@ -339,8 +371,9 @@ services:
       - MONGO_URL=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme123}@mongodb:27017/lms_prod?authSource=admin
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET}
+      - CELERY_BROKER_URL=redis://:default_password@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:default_password@redis:6379/0
     depends_on:
       - redis
       - mongodb

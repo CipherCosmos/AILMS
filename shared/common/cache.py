@@ -408,6 +408,72 @@ async def clear_cache():
     await cache_manager.clear_all()
 
 
+async def close_connection():
+    """Close cache connections"""
+    try:
+        await cache_manager.redis.disconnect()
+    except:
+        pass  # Ignore errors during shutdown
+
+
+async def health_check() -> Dict[str, Any]:
+    """Cache health check"""
+    try:
+        # Test Redis connection
+        redis_client = await cache_manager.redis.connect()
+        if redis_client:
+            await redis_client.ping()
+            redis_status = "healthy"
+        else:
+            redis_status = "unavailable"
+
+        # Get cache stats
+        stats = await cache_manager.get_stats()
+
+        return {
+            "status": "healthy" if redis_status == "healthy" else "degraded",
+            "redis": redis_status,
+            "cache_hits": stats.get("cache_hits", 0),
+            "cache_misses": stats.get("cache_misses", 0),
+            "hit_rate": stats.get("hit_rate", 0),
+            "local_cache_size": stats.get("local_cache_size", 0)
+        }
+
+    except Exception as e:
+        logger.error("Cache health check failed", extra={"error": str(e)})
+        return {"status": "unhealthy", "error": str(e)}
+
+
+# Placeholder classes and constants for compatibility
+class Cache:
+    """Placeholder Cache class"""
+    @staticmethod
+    async def get(key: str):
+        return await cache_manager.get(key)
+
+    @staticmethod
+    async def set(key: str, value, ttl: int = 300):
+        return await cache_manager.set(key, value, ttl)
+
+    @staticmethod
+    async def delete(key: str):
+        return await cache_manager.delete(key)
+
+
+class CacheKeys:
+    """Placeholder CacheKeys class"""
+    @staticmethod
+    def api_response(path: str, params: str):
+        return f"api:{path}:{params}"
+
+
+class CacheTTL:
+    """Placeholder CacheTTL class"""
+    DEFAULT = 300
+    SHORT = 60
+    LONG = 3600
+
+
 # Cache key generators
 def generate_user_cache_key(user_id: str, resource: str = "") -> str:
     """Generate cache key for user-related data"""

@@ -9,8 +9,8 @@ from shared.common.auth import get_current_user, require_admin
 from shared.common.errors import ValidationError, NotFoundError, AuthorizationError
 from shared.common.logging import get_logger
 
-from ..services.user_service import user_service
-from ..models import CareerProfileUpdate
+from services.user_service import user_service
+from models import CareerProfileUpdate
 
 logger = get_logger("user-service")
 router = APIRouter()

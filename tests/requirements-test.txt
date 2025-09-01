@@ -1,0 +1,440 @@
+# Testing Dependencies for LMS Backend
+pytest==7.4.0
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-json-report==1.5.0
+pytest-html==4.1.1
+pytest-xdist==3.3.1
+pytest-mock==3.11.1
+pytest-django==4.5.2
+
+# HTTP Testing
+httpx==0.25.2
+requests==2.31.0
+
+# Mock and Fixtures
+responses==0.24.1
+freezegun==1.2.2
+
+# Performance Testing
+locust==2.15.1
+
+# Security Testing
+bandit==1.7.5
+safety==2.3.5
+
+# Code Quality
+flake8==6.0.0
+black==23.7.0
+mypy==1.5.1
+pylint==2.17.5
+
+# Database Testing
+mongomock==4.1.2
+
+# Redis Testing
+fakeredis==2.20.1
+
+# Load Testing
+molotov==2.4
+
+# API Documentation Testing
+drf-spectacular==0.26.5
+
+# Environment and Configuration
+python-dotenv==1.0.0
+
+# Logging for Tests
+structlog==23.1.0
+
+# Data Generation for Tests
+faker==19.6.2
+
+# Test Data Management
+factory-boy==3.2.1
+
+# API Schema Validation
+openapi-spec-validator==0.5.6
+
+# Performance Profiling
+memory-profiler==0.61.0
+line-profiler==4.1.2
+
+# Security Headers Testing
+django-security-headers==0.1.0
+
+# CORS Testing
+django-cors-headers==4.2.0
+
+# Rate Limiting Testing
+django-ratelimit==4.1.0
+
+# Encryption Testing
+cryptography==41.0.4
+
+# JWT Testing
+PyJWT==2.8.0
+
+# Password Security Testing
+zxcvbn==4.4.24
+
+# SQL Injection Testing
+sqlparse==0.4.4
+
+# XSS Prevention Testing
+bleach==6.0.0
+
+# File Upload Testing
+django-storages==1.14.2
+
+# Email Testing
+django-mail-templated==2.6.2
+
+# Background Task Testing
+celery==5.3.4
+
+# WebSocket Testing
+websockets==11.0.3
+pytest-websocket==0.1.4
+
+# GraphQL Testing (if applicable)
+graphene-django==3.1.5
+pytest-graphql==0.1.0
+
+# REST API Testing
+djangorestframework==3.14.0
+pytest-drf==1.1.3
+
+# Authentication Testing
+django-allauth==0.57.0
+pytest-auth==0.1.1
+
+# Session Testing
+pytest-django-session==0.1.0
+
+# Cache Testing
+pytest-django-cache==0.1.0
+
+# Database Testing Enhanced
+pytest-django-db==0.1.0
+pytest-postgresql==4.1.1
+pytest-redis==3.0.2
+
+# Monitoring and Metrics Testing
+pytest-prometheus==0.3.0
+datadog==0.47.0
+
+# Logging Testing
+pytest-logging==2015.11.4
+
+# Timezone Testing
+pytest-timezone==2023.4
+
+# Internationalization Testing
+pytest-i18n==0.2.0
+
+# Accessibility Testing
+pytest-accessibility==0.1.0
+
+# Visual Regression Testing
+pytest-playwright==0.4.2
+
+# E2E Testing
+selenium==4.11.2
+pytest-selenium==4.1.0
+
+# Mobile Testing
+appium-python-client==2.11.1
+
+# API Load Testing
+vegeta==0.1.0
+
+# Chaos Engineering
+chaostoolkit==1.16.0
+chaostoolkit-kubernetes==0.32.0
+
+# Contract Testing
+pact-python==2.0.0
+pytest-pact==0.4.0
+
+# Property Based Testing
+hypothesis==6.82.0
+pytest-hypothesis==0.1.0
+
+# Mutation Testing
+mutmut==2.4.4
+
+# Fuzz Testing
+atheris==2.3.0
+
+# Benchmarking
+pytest-benchmark==4.0.0
+
+# Profiling
+pytest-profiling==1.7.0
+
+# Code Coverage Enhanced
+coverage==7.3.0
+pytest-cov==4.1.0
+
+# Test Parallelization
+pytest-parallel==0.1.1
+
+# Test Retry
+pytest-rerunfailures==12.0
+
+# Test Ordering
+pytest-order==1.1.0
+
+# Test Selection
+pytest-select==0.1.2
+
+# Test Reporting Enhanced
+pytest-reportlog==0.4.0
+pytest-testrail==0.1.0
+pytest-jira==0.3.0
+
+# CI/CD Integration
+pytest-github-actions-annotate-failures==0.2.0
+pytest-azurepipelines==1.0.5
+
+# Container Testing
+pytest-docker==1.1.0
+pytest-kubernetes==0.12.0
+
+# Cloud Testing
+pytest-aws==0.1.0
+pytest-gcp==0.1.0
+pytest-azure==0.1.0
+
+# Microservices Testing
+pytest-services==2.2.1
+pytest-microservices==0.1.0
+
+# Event-Driven Testing
+pytest-kafka==0.6.0
+pytest-rabbitmq==1.2.0
+
+# Graph Database Testing
+pytest-neo4j==0.1.0
+
+# Time Series Database Testing
+pytest-influxdb==0.1.0
+
+# Search Engine Testing
+pytest-elasticsearch==0.1.0
+
+# Message Queue Testing
+pytest-sqs==0.1.0
+pytest-pubsub==0.1.0
+
+# Configuration Testing
+pytest-config==0.1.0
+
+# Feature Flag Testing
+pytest-feature-flags==0.1.0
+
+# A/B Testing
+pytest-ab==0.1.0
+
+# Analytics Testing
+pytest-analytics==0.1.0
+
+# Compliance Testing
+pytest-soc2==0.1.0
+pytest-gdpr==0.1.0
+pytest-hipaa==0.1.0
+
+# Penetration Testing
+owasp-zap==0.1.0
+sqlmap==1.7.10
+
+# Vulnerability Scanning
+trivy==0.45.0
+grype==0.63.0
+
+# Secret Detection
+trufflehog==3.54.0
+detect-secrets==1.4.0
+
+# License Compliance
+fossa-cli==3.8.0
+license-checker==0.1.0
+
+# Dependency Vulnerability
+safety==2.3.5
+pip-audit==2.5.5
+
+# SBOM Generation
+syft==0.84.0
+cdxgen==8.8.0
+
+# Container Security
+docker-bench-security==0.1.0
+kube-bench==0.6.17
+
+# Infrastructure as Code Testing
+terraform-compliance==1.3.44
+checkov==2.3.318
+
+# Policy as Code
+conftest==0.42.0
+kyverno==1.9.5
+
+# GitOps Testing
+flux==1.27.0
+argo-cd==2.7.6
+
+# Service Mesh Testing
+istio==1.18.2
+linkerd==2.13.4
+
+# API Gateway Testing
+kong==3.4.0
+krakend==2.4.0
+
+# Load Balancer Testing
+nginx==1.23.3
+haproxy==2.7.8
+
+# Reverse Proxy Testing
+traefik==2.10.4
+caddy==2.6.4
+
+# CDN Testing
+cloudflare==2.11.7
+fastly==3.0.0
+
+# DNS Testing
+dig==1.0.0
+nslookup==1.0.0
+
+# SSL/TLS Testing
+openssl==3.1.1
+certbot==2.6.0
+mkcert==1.4.4
+
+# Certificate Testing
+step-ca==0.23.2
+smallstep==0.23.2
+
+# Key Management
+vault==1.13.3
+secrethub==0.47.0
+
+# Identity Management
+keycloak==21.1.1
+authentik==2023.6.1
+
+# Authorization
+opa==0.53.1
+cerbos==0.25.0
+
+# Audit Logging
+auditbeat==8.8.2
+filebeat==8.8.2
+
+# Monitoring
+prometheus==2.43.0
+grafana==9.5.2
+datadog-agent==7.45.0
+
+# Alerting
+alertmanager==0.25.0
+pagerduty==0.1.0
+
+# Logging
+fluentd==1.16.0
+logstash==8.8.2
+rsyslog==8.2306.0
+
+# Tracing
+jaeger==1.41.0
+zipkin==2.23.19
+opentelemetry==1.19.0
+
+# Metrics
+statsd==3.3.0
+telegraf==1.27.4
+collectd==5.12.0
+
+# APM
+newrelic==8.8.0
+appdynamics==23.7.0
+dynatrace==1.267.0
+
+# Error Tracking
+sentry==1.28.1
+rollbar==0.16.3
+bugsnag==4.5.0
+
+# Uptime Monitoring
+pingdom==1.0.0
+uptimerobot==1.0.0
+statuspage==1.0.0
+
+# Synthetic Monitoring
+selenium==4.11.2
+playwright==1.36.0
+cypress==12.17.1
+
+# Real User Monitoring
+rum==1.0.0
+boomerang==1.0.0
+
+# Performance Monitoring
+sitespeed==27.6.0
+lighthouse==10.3.0
+webpagetest==1.0.0
+
+# Database Monitoring
+pgwatch==1.0.0
+mongodb-exporter==0.39.1
+redis-exporter==1.50.0
+
+# Infrastructure Monitoring
+node-exporter==1.6.1
+blackbox-exporter==0.24.0
+snmp-exporter==0.24.0
+
+# Log Analysis
+elasticsearch==8.8.2
+kibana==8.8.2
+splunk==9.0.4
+
+# SIEM
+wazuh==4.4.5
+ossec==3.7.0
+
+# Threat Intelligence
+misp==2.4.172
+opencti==5.8.4
+
+# Incident Response
+thehive==4.1.24
+cortex==3.1.7
+
+# Forensics
+volatility==2.0.0
+autopsy==4.21.0
+
+# Compliance Automation
+chef-inspec==5.22.3
+ansible-lint==6.14.3
+terraform-validate==0.1.0
+
+# Backup Testing
+restic==0.15.2
+duplicati==2.0.7
+
+# Disaster Recovery Testing
+chaos-monkey==1.0.0
+gremlin==1.0.0
+
+# Cost Optimization
+kubecost==1.103.0
+opencost==1.103.0
+
+# Sustainability Testing
+kepler==0.7.0
+scaphandre==0.4.0

@@ -22,8 +22,11 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir celery redis kafka-python
 
-# Copy application code
-COPY backend/ .
+# Copy shared modules
+COPY shared/ ./shared/
+
+# Copy backend code
+COPY backend/ ./backend/
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app \

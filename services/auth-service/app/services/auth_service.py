@@ -27,9 +27,9 @@ class ValidationError(Exception):
         super().__init__(self.message)
 from shared.config.config import settings
 
-from ..config import auth_settings, JWT_ALGORITHM, JWT_ACCESS_EXPIRE_MINUTES, JWT_REFRESH_EXPIRE_DAYS
-from ..database import auth_db
-from ..models import (
+from config import auth_settings, JWT_ALGORITHM, JWT_ACCESS_EXPIRE_MINUTES, JWT_REFRESH_EXPIRE_DAYS
+from database import auth_db
+from models import (
     UserCreate, UserUpdate, LoginRequest, TokenPair,
     UserPublic, UserPrivate, AccountLockInfo
 )
@@ -471,3 +471,7 @@ class AuthService:
             "password_resets_today": 0,
             "average_session_duration": 0.0
         }
+
+
+# Global service instance
+auth_service = AuthService()

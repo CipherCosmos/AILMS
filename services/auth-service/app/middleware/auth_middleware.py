@@ -8,8 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from shared.common.logging import get_logger
 from shared.common.monitoring import metrics_collector
-from ..services.auth_service import AuthService
-from ..database import auth_db
+from services.auth_service import AuthService
+from database import auth_db
 
 logger = get_logger("auth-middleware")
 
@@ -110,7 +110,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Remove server header for security
-        response.headers.pop("Server", None)
+        if "Server" in response.headers:
+            del response.headers["Server"]
 
         return response
 
@@ -148,7 +149,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             })
 
             # Update metrics
-            await metrics_collector.histogram(
+            await metrics_collector.record_histogram(
                 "request_duration",
                 response_time,
                 tags={

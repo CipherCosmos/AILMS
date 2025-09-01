@@ -9,8 +9,8 @@ from shared.common.auth import get_current_user, require_admin
 from shared.common.errors import ValidationError, NotFoundError, AuthorizationError
 from shared.common.logging import get_logger
 
-from ..services.user_service import user_service
-from ..models import UserProfileUpdate
+from services.user_service import user_service
+from models import UserProfileUpdate
 
 logger = get_logger("user-service")
 router = APIRouter()
@@ -29,7 +29,7 @@ async def get_user_profile(user: dict = Depends(get_current_user)):
 
     except NotFoundError:
         # Create default profile if not found
-        from ..models import UserProfileCreate
+        from models import UserProfileCreate
         profile_data = UserProfileCreate(user_id=user["id"])
         profile = await user_service.create_user_profile(profile_data)
         return profile.dict()
@@ -125,7 +125,7 @@ async def get_profile_stats(user: dict = Depends(get_current_user)):
     Get statistics about the user's profile completeness.
     """
     try:
-        from ..utils.user_utils import calculate_profile_completeness
+        from utils.user_utils import calculate_profile_completeness
 
         try:
             profile = await user_service.get_user_profile(user["id"])
@@ -174,7 +174,7 @@ async def update_privacy_settings(privacy_data: dict, user: dict = Depends(get_c
             raise ValidationError("No valid privacy fields provided", "privacy_data")
 
         # Create update object
-        from ..models import UserProfileUpdate
+        from models import UserProfileUpdate
         profile_update = UserProfileUpdate(privacy_settings=privacy_updates)
 
         # Update profile

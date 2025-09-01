@@ -15,13 +15,24 @@ class Settings(BaseSettings):
     mongo_url: str = os.getenv("MONGO_URL", "mongodb://localhost:27017/lms_dev")
     mongo_username: str = os.getenv("MONGO_USERNAME", "")
     mongo_password: str = os.getenv("MONGO_PASSWORD", "")
+    mongo_root_password: str = os.getenv("MONGO_ROOT_PASSWORD", "")
     db_name: str = os.getenv("DB_NAME", "lms_dev")
 
     # Redis
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
+    # Performance Settings
+    db_connection_pool_size: int = int(os.getenv("DB_CONNECTION_POOL_SIZE", "10"))
+    db_query_timeout_seconds: int = int(os.getenv("DB_QUERY_TIMEOUT_SECONDS", "30"))
+    cache_enabled: bool = os.getenv("CACHE_ENABLED", "true").lower() == "true"
+    cache_ttl_seconds: int = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+    db_connection_pool_recycle: int = int(os.getenv("DB_CONNECTION_POOL_RECYCLE", "3600"))
+    db_read_preference: str = os.getenv("DB_READ_PREFERENCE", "primary")
+
     # Security - NO HARDCODED SECRETS
     jwt_secret: str = os.getenv("JWT_SECRET", "")
+    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    refresh_token_expire_days: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "14"))
     access_expire_min: int = int(os.getenv("ACCESS_EXPIRE_MIN", "30"))
     refresh_expire_days: int = int(os.getenv("REFRESH_EXPIRE_DAYS", "14"))
 

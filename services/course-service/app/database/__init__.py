@@ -1,0 +1,1 @@
+# Course service database package
