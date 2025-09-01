@@ -10,19 +10,13 @@ from shared.config.config import settings
 from shared.common.logging import get_logger
 from shared.common.database import get_database, close_connection
 from shared.common.cache import close_connection as close_cache
-from shared.common.middleware import (
-    create_cors_middleware,
-    RequestLoggingMiddleware,
-    RateLimitMiddleware
-)
+# from .middleware.auth_middleware import RequestLoggingMiddleware
 
-from .routes import (
-    profiles_router,
-    career_router,
-    analytics_router,
-    achievements_router,
-    health_router
-)
+from .routes.profiles import router as profiles_router
+from .routes.career import router as career_router
+from .routes.analytics import router as analytics_router
+from .routes.achievements import router as achievements_router
+from .routes.health import router as health_router
 
 # Initialize logger
 logger = get_logger("user-service")
@@ -65,13 +59,17 @@ def create_application() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Add middleware
-    app.add_middleware(create_cors_middleware())
-    app.add_middleware(RequestLoggingMiddleware)
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Configure based on your needs
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    # Add rate limiting in production (moderate for user operations)
-    if settings.environment == "production":
-        app.add_middleware(RateLimitMiddleware, requests_per_minute=300)
+    # Add custom middleware (commented out for now)
+    # app.add_middleware(RequestLoggingMiddleware)
 
     # Include routers
     app.include_router(profiles_router, prefix="/users", tags=["User Profiles"])
