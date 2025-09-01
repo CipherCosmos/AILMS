@@ -3,57 +3,28 @@ Token management routes for Auth Service
 """
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
 from shared.config.config import settings
-from shared.common.auth import get_current_user, require_admin
-from shared.common.errors import ValidationError, AuthorizationError
 from shared.common.logging import get_logger
+from shared.common.errors import ValidationError, AuthenticationError
+from ..services.auth_service import AuthService
+from ..models import UserPrivate
+from ..database import auth_db
 
 logger = get_logger("auth-service")
 router = APIRouter()
 
-async def _current_user(token: str = None):
-    """Get current authenticated user"""
-    if not token:
-        raise HTTPException(401, "No authentication token provided")
+security = HTTPBearer()
 
-    try:
-        import jwt
-        from shared.config.config import settings
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current authenticated user from service"""
+    return await AuthService.get_current_user(credentials.credentials)
 
-        # Decode and validate JWT token
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-
-        # Verify token hasn't expired
-        from datetime import datetime, timezone
-        if payload.get("exp") and datetime.fromtimestamp(payload["exp"], timezone.utc) < datetime.now(timezone.utc):
-            raise HTTPException(401, "Token has expired")
-
-        # Get user from database
-        db = get_database()
-        user = await db.users.find_one({"_id": payload.get("sub")})
-        if not user:
-            raise HTTPException(401, "User not found")
-
-        return {
-            "id": user["_id"],
-            "role": user.get("role", "student"),
-            "email": user.get("email", ""),
-            "name": user.get("name", "")
-        }
-
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid token")
-    except Exception as e:
-        raise HTTPException(401, f"Authentication failed: {str(e)}")
-
-def _require_role(user, allowed: list[str]):
+def require_role(user: UserPrivate, allowed: list[str]):
     """Check if user has required role"""
-    if user.get("role") not in allowed:
-        raise HTTPException(403, "Insufficient permissions")
+    return AuthService.validate_token_permissions(user, allowed)
 
 @router.post("/validate")
 async def validate_token(token: str):
@@ -64,7 +35,7 @@ async def validate_token(token: str):
     """
     try:
         if not token:
-            raise ValidationError("Token is required", "token")
+            raise HTTPException(400, "Token is required")
 
         # Decode and validate token
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
@@ -78,7 +49,7 @@ async def validate_token(token: str):
             }
 
         # Get user to verify they still exist
-        db = get_database()
+        db = await auth_db.get_db()
         user = await db.users.find_one({"_id": payload.get("sub")})
         if not user:
             return {
@@ -88,7 +59,7 @@ async def validate_token(token: str):
 
         return {
             "valid": True,
-            "user_id": payload.get("sub"),
+            "user_id": str(payload.get("sub")),
             "role": payload.get("role"),
             "expires_at": datetime.fromtimestamp(payload["exp"], timezone.utc).isoformat() if payload.get("exp") else None,
             "issued_at": datetime.fromtimestamp(payload["iat"], timezone.utc).isoformat() if payload.get("iat") else None
@@ -104,8 +75,6 @@ async def validate_token(token: str):
             "valid": False,
             "error": "Invalid token"
         }
-    except ValidationError:
-        raise
     except Exception as e:
         logger.error("Token validation failed", extra={"error": str(e)})
         return {
@@ -114,34 +83,29 @@ async def validate_token(token: str):
         }
 
 @router.get("/info")
-async def get_token_info(user=Depends(_current_user)):
+async def get_token_info(user: UserPrivate = Depends(get_current_user)):
     """
     Get information about the current user's token.
     """
     try:
-        # Get the token from the request headers
-        from fastapi import Request
-        # Note: This would need to be implemented differently in practice
-        # For now, return basic user info
-
         return {
-            "user_id": user["id"],
-            "role": user["role"],
-            "email": user["email"],
-            "name": user["name"],
+            "user_id": user.id,
+            "role": user.role,
+            "email": user.email,
+            "name": user.name,
             "token_type": "bearer",
             "issued_at": "current_session"  # Would need to track this
         }
 
     except Exception as e:
         logger.error("Failed to get token info", extra={
-            "user_id": user["id"],
+            "user_id": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Failed to get token information")
 
 @router.post("/revoke")
-async def revoke_token(token: str, user=Depends(_current_user)):
+async def revoke_token(token: str, user: UserPrivate = Depends(get_current_user)):
     """
     Revoke a specific token (admin only).
 
@@ -152,10 +116,11 @@ async def revoke_token(token: str, user=Depends(_current_user)):
     """
     try:
         # Check permissions
-        _require_role(user, ["admin", "super_admin"])
+        if not require_role(user, ["admin", "super_admin"]):
+            raise AuthenticationError("Admin access required")
 
         if not token:
-            raise ValidationError("Token is required", "token")
+            raise HTTPException(400, "Token is required")
 
         # In production, you would:
         # 1. Decode the token to get user info
@@ -163,7 +128,7 @@ async def revoke_token(token: str, user=Depends(_current_user)):
         # 3. Set an expiration time for the blacklist entry
 
         logger.info("Token revocation requested", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "token_preview": token[:20] + "..." if len(token) > 20 else token
         })
 
@@ -175,23 +140,24 @@ async def revoke_token(token: str, user=Depends(_current_user)):
             "note": "Token blacklisting not yet implemented"
         }
 
-    except (ValidationError, AuthorizationError):
-        raise
+    except AuthenticationError as e:
+        raise HTTPException(403, str(e))
     except Exception as e:
         logger.error("Token revocation failed", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Token revocation failed")
 
 @router.get("/config")
-async def get_token_config(user=Depends(_current_user)):
+async def get_token_config(user: UserPrivate = Depends(get_current_user)):
     """
     Get JWT token configuration (admin only).
     """
     try:
         # Check permissions
-        _require_role(user, ["admin", "super_admin"])
+        if not require_role(user, ["admin", "super_admin"]):
+            raise AuthenticationError("Admin access required")
 
         config = {
             "jwt_algorithm": "HS256",
@@ -209,17 +175,17 @@ async def get_token_config(user=Depends(_current_user)):
 
         return config
 
-    except AuthorizationError:
-        raise
+    except AuthenticationError as e:
+        raise HTTPException(403, str(e))
     except Exception as e:
         logger.error("Failed to get token config", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Failed to get token configuration")
 
 @router.post("/refresh-config")
-async def refresh_token_config(user=Depends(_current_user)):
+async def refresh_token_config(user: UserPrivate = Depends(get_current_user)):
     """
     Refresh JWT configuration from environment (admin only).
 
@@ -227,13 +193,14 @@ async def refresh_token_config(user=Depends(_current_user)):
     """
     try:
         # Check permissions
-        _require_role(user, ["admin", "super_admin"])
+        if not require_role(user, ["admin", "super_admin"]):
+            raise AuthenticationError("Admin access required")
 
         # In production, this would reload settings from environment
         # For now, return current config
 
         logger.info("Token config refresh requested", extra={
-            "requested_by": user["id"]
+            "requested_by": user.id
         })
 
         return {
@@ -247,53 +214,41 @@ async def refresh_token_config(user=Depends(_current_user)):
             }
         }
 
-    except AuthorizationError:
-        raise
+    except AuthenticationError as e:
+        raise HTTPException(403, str(e))
     except Exception as e:
         logger.error("Token config refresh failed", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Token config refresh failed")
 
 @router.get("/stats")
-async def get_token_stats(user=Depends(_current_user)):
+async def get_token_stats(user: UserPrivate = Depends(get_current_user)):
     """
     Get token usage statistics (admin only).
     """
     try:
         # Check permissions
-        _require_role(user, ["admin", "super_admin"])
+        if not require_role(user, ["admin", "super_admin"]):
+            raise AuthenticationError("Admin access required")
 
-        # In production, you would track:
-        # - Tokens issued per day/hour
-        # - Token validation failures
-        # - Refresh token usage
-        # - Token expiration patterns
+        # Get basic metrics from service
+        metrics = await AuthService.get_auth_metrics()
 
-        stats = {
-            "tokens_issued_today": 0,  # Would track actual metrics
-            "tokens_validated_today": 0,
-            "token_failures_today": 0,
-            "refresh_tokens_used_today": 0,
-            "average_token_lifetime": f"{settings.access_expire_min} minutes",
-            "most_common_failure_reason": "expired",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        return metrics
 
-        return stats
-
-    except AuthorizationError:
-        raise
+    except AuthenticationError as e:
+        raise HTTPException(403, str(e))
     except Exception as e:
         logger.error("Failed to get token stats", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Failed to get token statistics")
 
 @router.post("/blacklist")
-async def blacklist_token(token: str, reason: str = "manual", user=Depends(_current_user)):
+async def blacklist_token(token: str, reason: str = "manual", user: UserPrivate = Depends(get_current_user)):
     """
     Add a token to the blacklist (admin only).
 
@@ -302,10 +257,11 @@ async def blacklist_token(token: str, reason: str = "manual", user=Depends(_curr
     """
     try:
         # Check permissions
-        _require_role(user, ["admin", "super_admin"])
+        if not require_role(user, ["admin", "super_admin"]):
+            raise AuthenticationError("Admin access required")
 
         if not token:
-            raise ValidationError("Token is required", "token")
+            raise HTTPException(400, "Token is required")
 
         # In production, you would:
         # 1. Store the token hash in Redis/cache
@@ -313,7 +269,7 @@ async def blacklist_token(token: str, reason: str = "manual", user=Depends(_curr
         # 3. Check blacklist during token validation
 
         logger.info("Token blacklisted", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "reason": reason,
             "token_preview": token[:20] + "..." if len(token) > 20 else token
         })
@@ -323,14 +279,14 @@ async def blacklist_token(token: str, reason: str = "manual", user=Depends(_curr
             "token_id": "placeholder",  # Would be actual token ID/hash
             "reason": reason,
             "blacklisted_at": datetime.now(timezone.utc).isoformat(),
-            "blacklisted_by": user["id"]
+            "blacklisted_by": user.id
         }
 
-    except (ValidationError, AuthorizationError):
-        raise
+    except AuthenticationError as e:
+        raise HTTPException(403, str(e))
     except Exception as e:
         logger.error("Token blacklisting failed", extra={
-            "requested_by": user["id"],
+            "requested_by": user.id,
             "error": str(e)
         })
         raise HTTPException(500, "Token blacklisting failed")

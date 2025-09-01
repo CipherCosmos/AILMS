@@ -1,159 +1,283 @@
 """
-Custom exceptions and error handling for LMS microservices
+Enhanced error handling system for LMS microservices
 """
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional, Union
 from fastapi import HTTPException
-from shared.common.logging import get_logger
+from pydantic import BaseModel, Field
+from shared.common.responses import ErrorResponse, ErrorCodes
 
-logger = get_logger("common-errors")
 
-class LMSError(HTTPException):
-    """Base exception for LMS errors"""
+class APIError(HTTPException):
+    """Base API error class with standardized format"""
 
-    def __init__(self, status_code: int, detail: str, error_code: Optional[str] = None):
-        super().__init__(status_code=status_code, detail=detail)
-        self.error_code = error_code or f"ERR_{status_code}"
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None
+    ):
+        # Create standardized error response
+        error_response = ErrorResponse.create(
+            error_code=code,
+            message=message,
+            error_details=details,
+            status_code=status_code
+        )
 
-class AuthenticationError(LMSError):
-    """Authentication related errors"""
+        super().__init__(
+            status_code=status_code,
+            detail=error_response.dict(),
+            headers=headers
+        )
+        self.error_code = code
+        self.error_details = details
 
-    def __init__(self, detail: str = "Authentication failed"):
-        super().__init__(status_code=401, detail=detail, error_code="AUTH_001")
 
-class AuthorizationError(LMSError):
-    """Authorization related errors"""
+class ValidationError(APIError):
+    """Validation error for input data"""
 
-    def __init__(self, detail: str = "Insufficient permissions"):
-        super().__init__(status_code=403, detail=detail, error_code="AUTH_002")
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        value: Optional[Any] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"field": field, "value": value}
+        if details:
+            error_details.update(details)
 
-class NotFoundError(LMSError):
-    """Resource not found errors"""
+        super().__init__(
+            status_code=422,
+            code=ErrorCodes.VALIDATION_ERROR,
+            message=message,
+            details=error_details
+        )
 
-    def __init__(self, resource: str, resource_id: Optional[str] = None):
-        detail = f"{resource} not found"
-        if resource_id:
-            detail += f": {resource_id}"
-        super().__init__(status_code=404, detail=detail, error_code="NOT_FOUND_001")
 
-class ValidationError(LMSError):
-    """Data validation errors"""
+class NotFoundError(APIError):
+    """Resource not found error"""
 
-    def __init__(self, detail: str, field: Optional[str] = None):
-        error_detail = f"Validation error"
-        if field:
-            error_detail += f" for field '{field}'"
-        error_detail += f": {detail}"
-        super().__init__(status_code=422, detail=error_detail, error_code="VALIDATION_001")
+    def __init__(
+        self,
+        resource: str,
+        resource_id: Union[str, int],
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"resource": resource, "resource_id": str(resource_id)}
+        if details:
+            error_details.update(details)
 
-class DatabaseError(LMSError):
-    """Database operation errors"""
+        super().__init__(
+            status_code=404,
+            code=ErrorCodes.NOT_FOUND,
+            message=f"{resource} with id '{resource_id}' not found",
+            details=error_details
+        )
 
-    def __init__(self, operation: str, detail: str):
+
+class AuthorizationError(APIError):
+    """Authorization error"""
+
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            status_code=403,
+            code=ErrorCodes.FORBIDDEN,
+            message=message,
+            details=details
+        )
+
+
+class AuthenticationError(APIError):
+    """Authentication error"""
+
+    def __init__(
+        self,
+        message: str = "Authentication required",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            status_code=401,
+            code=ErrorCodes.UNAUTHORIZED,
+            message=message,
+            details=details
+        )
+
+
+class DatabaseError(APIError):
+    """Database operation error"""
+
+    def __init__(
+        self,
+        operation: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"operation": operation}
+        if details:
+            error_details.update(details)
+
         super().__init__(
             status_code=500,
-            detail=f"Database {operation} failed: {detail}",
-            error_code="DB_001"
+            code=ErrorCodes.DATABASE_ERROR,
+            message=f"Database error during {operation}: {message}",
+            details=error_details
         )
 
-class ExternalServiceError(LMSError):
-    """External service communication errors"""
 
-    def __init__(self, service: str, operation: str, detail: str):
+class ServiceUnavailableError(APIError):
+    """Service unavailable error"""
+
+    def __init__(
+        self,
+        service: str,
+        message: str = "Service temporarily unavailable",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"service": service}
+        if details:
+            error_details.update(details)
+
         super().__init__(
-            status_code=502,
-            detail=f"External service '{service}' {operation} failed: {detail}",
-            error_code="EXT_SVC_001"
+            status_code=503,
+            code=ErrorCodes.SERVICE_UNAVAILABLE,
+            message=message,
+            details=error_details
         )
 
-class RateLimitError(LMSError):
-    """Rate limiting errors"""
 
-    def __init__(self, detail: str = "Rate limit exceeded"):
-        super().__init__(status_code=429, detail=detail, error_code="RATE_LIMIT_001")
+class RateLimitError(APIError):
+    """Rate limit exceeded error"""
 
-class BusinessLogicError(LMSError):
-    """Business logic violation errors"""
+    def __init__(
+        self,
+        limit: int,
+        window: int,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"limit": limit, "window_seconds": window}
+        if details:
+            error_details.update(details)
 
-    def __init__(self, detail: str, error_code: str = "BUSINESS_001"):
-        super().__init__(status_code=400, detail=detail, error_code=error_code)
-
-# Specific business errors
-class CourseNotEnrolledError(BusinessLogicError):
-    """User not enrolled in course"""
-
-    def __init__(self, course_id: str):
         super().__init__(
-            detail=f"Not enrolled in course: {course_id}",
-            error_code="COURSE_001"
+            status_code=429,
+            code=ErrorCodes.RATE_LIMIT_EXCEEDED,
+            message=f"Rate limit exceeded: {limit} requests per {window} seconds",
+            details=error_details,
+            headers={"Retry-After": str(window)}
         )
 
-class AssignmentAlreadySubmittedError(BusinessLogicError):
-    """Assignment already submitted"""
 
-    def __init__(self, assignment_id: str):
+class AIError(APIError):
+    """AI service error"""
+
+    def __init__(
+        self,
+        operation: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"operation": operation}
+        if details:
+            error_details.update(details)
+
         super().__init__(
-            detail=f"Assignment already submitted: {assignment_id}",
-            error_code="ASSIGNMENT_001"
+            status_code=500,
+            code=ErrorCodes.AI_SERVICE_ERROR,
+            message=f"AI service error during {operation}: {message}",
+            details=error_details
         )
 
-class QuizTimeExpiredError(BusinessLogicError):
-    """Quiz time has expired"""
 
-    def __init__(self, quiz_id: str):
+class ConflictError(APIError):
+    """Resource conflict error"""
+
+    def __init__(
+        self,
+        resource: str,
+        conflict_reason: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = {"resource": resource, "conflict_reason": conflict_reason}
+        if details:
+            error_details.update(details)
+
         super().__init__(
-            detail=f"Quiz time has expired: {quiz_id}",
-            error_code="QUIZ_001"
+            status_code=409,
+            code="CONFLICT",
+            message=f"Conflict with existing {resource}: {conflict_reason}",
+            details=error_details
         )
 
-def handle_error(error: Exception, correlation_id: Optional[str] = None) -> Dict[str, Any]:
-    """Convert exception to standardized error response"""
-    if isinstance(error, LMSError):
-        logger.error(
-            f"LMS Error: {error.detail}",
-            extra={
-                "error_code": error.error_code,
-                "status_code": error.status_code,
-                "correlation_id": correlation_id
-            },
-            correlation_id=correlation_id
+
+class BadRequestError(APIError):
+    """Bad request error"""
+
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            status_code=400,
+            code="BAD_REQUEST",
+            message=message,
+            details=details
         )
-        return {
-            "error": {
-                "code": error.error_code,
-                "message": error.detail,
-                "status_code": error.status_code
-            }
-        }
-    elif isinstance(error, HTTPException):
-        logger.error(
-            f"HTTP Error: {error.detail}",
-            extra={
-                "status_code": error.status_code,
-                "correlation_id": correlation_id
-            },
-            correlation_id=correlation_id
-        )
-        return {
-            "error": {
-                "code": f"HTTP_{error.status_code}",
-                "message": error.detail,
-                "status_code": error.status_code
-            }
-        }
-    else:
-        # Generic error
-        logger.error(
-            f"Unexpected error: {str(error)}",
-            extra={
-                "error_type": type(error).__name__,
-                "correlation_id": correlation_id
-            },
-            correlation_id=correlation_id
-        )
-        return {
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "An unexpected error occurred",
-                "status_code": 500
-            }
-        }
+
+
+# Error handler utilities
+def handle_database_error(operation: str, error: Exception) -> DatabaseError:
+    """Convert database exceptions to standardized errors"""
+    return DatabaseError(operation, str(error))
+
+
+def handle_validation_error(field: str, message: str, value: Any = None) -> ValidationError:
+    """Create validation error with field information"""
+    return ValidationError(message, field=field, value=value)
+
+
+def handle_not_found(resource: str, resource_id: Union[str, int]) -> NotFoundError:
+    """Create not found error"""
+    return NotFoundError(resource, resource_id)
+
+
+def handle_unauthorized(message: str = "Authentication required") -> AuthenticationError:
+    """Create authentication error"""
+    return AuthenticationError(message)
+
+
+def handle_forbidden(message: str = "Insufficient permissions") -> AuthorizationError:
+    """Create authorization error"""
+    return AuthorizationError(message)
+
+
+def handle_service_unavailable(service: str, message: Optional[str] = None) -> ServiceUnavailableError:
+    """Create service unavailable error"""
+    return ServiceUnavailableError(service, message or f"{service} is temporarily unavailable")
+
+
+def handle_rate_limit(limit: int, window: int) -> RateLimitError:
+    """Create rate limit error"""
+    return RateLimitError(limit, window)
+
+
+def handle_ai_error(operation: str, error: Exception) -> AIError:
+    """Create AI service error"""
+    return AIError(operation, str(error))
+
+
+def handle_conflict(resource: str, reason: str) -> ConflictError:
+    """Create conflict error"""
+    return ConflictError(resource, reason)
+
+
+def handle_bad_request(message: str) -> BadRequestError:
+    """Create bad request error"""
+    return BadRequestError(message)

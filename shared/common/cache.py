@@ -1,55 +1,90 @@
 """
-Redis caching utilities for LMS microservices
+Advanced caching system for LMS microservices
 """
+import asyncio
 import json
-import pickle
-from typing import Any, Optional, Union, Dict
-from datetime import timedelta
-import redis.asyncio as redis
+import time
+from typing import Any, Dict, Optional, Union, Callable
+from contextlib import asynccontextmanager
+try:
+    import redis.asyncio as redis
+except ImportError:
+    import redis
 from shared.config.config import settings
 from shared.common.logging import get_logger
-from shared.common.errors import ExternalServiceError
 
 logger = get_logger("common-cache")
 
-class CacheManager:
-    """Redis cache manager with error handling and serialization"""
+# Redis availability check
+REDIS_AVAILABLE = False
+try:
+    import redis.asyncio as redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    try:
+        import redis
+        REDIS_AVAILABLE = True
+    except ImportError:
+        pass
+
+
+class RedisManager:
+    """Redis connection manager with connection pooling"""
 
     def __init__(self):
-        self.client: Optional[redis.Redis] = None
+        self.client: Optional[Any] = None
         self._connection_lock = asyncio.Lock()
+        self.redis_available = REDIS_AVAILABLE
 
-    async def connect(self) -> redis.Redis:
-        """Connect to Redis with error handling"""
+    async def connect(self) -> Any:
+        """Connect to Redis with connection pooling"""
+        if not self.redis_available:
+            return None
+
         async with self._connection_lock:
             if self.client is not None:
                 return self.client
 
             try:
-                self.client = redis.Redis.from_url(
-                    settings.redis_url,
-                    decode_responses=True,  # Decode responses to strings
-                    retry_on_timeout=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                    health_check_interval=30
-                )
+                if REDIS_AVAILABLE:
+                    # Parse Redis URL
+                    redis_url = settings.redis_url
+                    if "://" in redis_url:
+                        # Handle redis://host:port format
+                        parts = redis_url.replace("redis://", "").split(":")
+                        host = parts[0] if len(parts) > 0 else "redis"
+                        port = int(parts[1]) if len(parts) > 1 else 6379
+                    else:
+                        host = "redis"
+                        port = 6379
 
-                # Test connection
-                await self.client.ping()
+                    self.client = redis.Redis(
+                        host=host,
+                        port=port,
+                        db=0,
+                        decode_responses=True,
+                        max_connections=20,
+                        retry_on_timeout=True,
+                        socket_timeout=5,
+                        socket_connect_timeout=5,
+                        health_check_interval=30
+                    )
 
-                logger.info("Redis connection established", extra={
-                    "redis_url": settings.redis_url.replace("://", "://***:***@")  # Mask credentials in logs
-                })
+                    # Test connection
+                    if self.client:
+                        await self.client.ping()
 
-                return self.client
+                    logger.info("Redis connection established", extra={
+                        "host": host,
+                        "port": port
+                    })
 
-            except redis.ConnectionError as e:
-                logger.error("Redis connection failed", extra={"error": str(e)})
-                raise ExternalServiceError("redis", "connection", str(e))
+                    return self.client
+
             except Exception as e:
-                logger.error("Redis initialization error", extra={"error": str(e)})
-                raise ExternalServiceError("redis", "initialization", str(e))
+                logger.error("Redis connection failed", extra={"error": str(e)})
+                self.redis_available = False
+                return None
 
     async def disconnect(self):
         """Close Redis connection"""
@@ -59,163 +94,346 @@ class CacheManager:
                 self.client = None
                 logger.info("Redis connection closed")
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Check Redis health"""
+    async def get(self, key: str) -> Optional[str]:
+        """Get value from Redis"""
         try:
-            if not self.client:
-                return {"status": "disconnected"}
+            client = await self.connect()
+            return await client.get(key)
+        except Exception as e:
+            logger.warning("Redis get failed", extra={"key": key, "error": str(e)})
+            return None
 
-            # Test connection
-            await self.client.ping()
+    async def set(self, key: str, value: str, ttl: int = 300) -> bool:
+        """Set value in Redis with TTL"""
+        try:
+            client = await self.connect()
+            return await client.set(key, value, ex=ttl)
+        except Exception as e:
+            logger.warning("Redis set failed", extra={"key": key, "error": str(e)})
+            return False
 
-            # Get basic info
-            info = await self.client.info()
+    async def delete(self, key: str) -> bool:
+        """Delete key from Redis"""
+        try:
+            client = await self.connect()
+            return await client.delete(key) > 0
+        except Exception as e:
+            logger.warning("Redis delete failed", extra={"key": key, "error": str(e)})
+            return False
 
-            return {
-                "status": "healthy",
-                "version": info.get("redis_version"),
-                "connected_clients": info.get("connected_clients"),
-                "used_memory": info.get("used_memory_human"),
-                "total_connections_received": info.get("total_connections_received")
+    async def exists(self, key: str) -> bool:
+        """Check if key exists in Redis"""
+        try:
+            client = await self.connect()
+            return await client.exists(key) > 0
+        except Exception as e:
+            logger.warning("Redis exists failed", extra={"key": key, "error": str(e)})
+            return False
+
+    async def expire(self, key: str, ttl: int) -> bool:
+        """Set expiration on key"""
+        try:
+            client = await self.connect()
+            return await client.expire(key, ttl)
+        except Exception as e:
+            logger.warning("Redis expire failed", extra={"key": key, "error": str(e)})
+            return False
+
+    async def incr(self, key: str) -> int:
+        """Increment value"""
+        try:
+            client = await self.connect()
+            return await client.incr(key)
+        except Exception as e:
+            logger.warning("Redis incr failed", extra={"key": key, "error": str(e)})
+            return 0
+
+
+class LocalCache:
+    """Local in-memory cache for frequently accessed data"""
+
+    def __init__(self, max_size: int = 1000):
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.max_size = max_size
+        self._lock = asyncio.Lock()
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from local cache"""
+        async with self._lock:
+            if key in self.cache:
+                entry = self.cache[key]
+                if entry["expires"] > time.time():
+                    return entry["value"]
+                else:
+                    # Remove expired entry
+                    del self.cache[key]
+            return None
+
+    async def set(self, key: str, value: Any, ttl: int = 300) -> bool:
+        """Set value in local cache"""
+        async with self._lock:
+            # Remove expired entries if cache is full
+            if len(self.cache) >= self.max_size:
+                await self._cleanup_expired()
+
+            if len(self.cache) >= self.max_size:
+                # Remove oldest entry (simple LRU)
+                oldest_key = min(self.cache.keys(),
+                               key=lambda k: self.cache[k]["expires"])
+                del self.cache[oldest_key]
+
+            self.cache[key] = {
+                "value": value,
+                "expires": time.time() + ttl
             }
+            return True
+
+    async def delete(self, key: str) -> bool:
+        """Delete key from local cache"""
+        async with self._lock:
+            if key in self.cache:
+                del self.cache[key]
+                return True
+            return False
+
+    async def clear(self):
+        """Clear all cache entries"""
+        async with self._lock:
+            self.cache.clear()
+
+    async def _cleanup_expired(self):
+        """Remove expired entries"""
+        current_time = time.time()
+        expired_keys = [
+            key for key, entry in self.cache.items()
+            if entry["expires"] <= current_time
+        ]
+        for key in expired_keys:
+            del self.cache[key]
+
+
+class CacheManager:
+    """Advanced multi-level cache manager"""
+
+    def __init__(self):
+        self.redis = RedisManager()
+        self.local_cache = LocalCache(max_size=500)
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self._stats_lock = asyncio.Lock()
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from cache (local first, then Redis)"""
+        # Try local cache first
+        value = await self.local_cache.get(key)
+        if value is not None:
+            async with self._stats_lock:
+                self.cache_hits += 1
+            return value
+
+        # Try Redis
+        redis_value = await self.redis.get(key)
+        if redis_value is not None:
+            # Store in local cache for faster future access
+            try:
+                parsed_value = json.loads(redis_value)
+                await self.local_cache.set(key, parsed_value, ttl=60)  # 1 minute local TTL
+                async with self._stats_lock:
+                    self.cache_hits += 1
+                return parsed_value
+            except json.JSONDecodeError:
+                async with self._stats_lock:
+                    self.cache_hits += 1
+                return redis_value
+
+        async with self._stats_lock:
+            self.cache_misses += 1
+        return None
+
+    async def set(self, key: str, value: Any, ttl: int = 300, local_ttl: int = 60) -> bool:
+        """Set value in both caches"""
+        try:
+            # Serialize value for Redis
+            if isinstance(value, (dict, list)):
+                redis_value = json.dumps(value)
+            else:
+                redis_value = str(value)
+
+            # Set in Redis
+            redis_success = await self.redis.set(key, redis_value, ttl)
+
+            # Set in local cache
+            local_success = await self.local_cache.set(key, value, local_ttl)
+
+            return redis_success and local_success
 
         except Exception as e:
-            logger.error("Redis health check failed", extra={"error": str(e)})
-            return {"status": "unhealthy", "error": str(e)}
+            logger.warning("Cache set failed", extra={"key": key, "error": str(e)})
+            return False
+
+    async def delete(self, key: str) -> bool:
+        """Delete from both caches"""
+        redis_success = await self.redis.delete(key)
+        local_success = await self.local_cache.delete(key)
+        return redis_success or local_success
+
+    async def exists(self, key: str) -> bool:
+        """Check if key exists in either cache"""
+        return await self.local_cache.get(key) is not None or await self.redis.exists(key)
+
+    async def get_or_set(
+        self,
+        key: str,
+        getter_func: Callable[[], Any],
+        ttl: int = 300,
+        force_refresh: bool = False
+    ) -> Any:
+        """Get from cache or set if not exists"""
+        if not force_refresh:
+            cached_value = await self.get(key)
+            if cached_value is not None:
+                return cached_value
+
+        # Get fresh data
+        try:
+            value = await getter_func()
+            await self.set(key, value, ttl)
+            return value
+        except Exception as e:
+            logger.error("Failed to get fresh data for cache", extra={"key": key, "error": str(e)})
+            raise
+
+    async def invalidate_pattern(self, pattern: str) -> int:
+        """Invalidate all keys matching pattern"""
+        try:
+            client = await self.redis.connect()
+
+            # Get all keys matching pattern
+            keys = await client.keys(pattern)
+
+            if keys:
+                # Delete from Redis
+                await client.delete(*keys)
+
+                # Delete from local cache (we'll delete all since pattern matching is complex)
+                await self.local_cache.clear()
+
+                logger.info("Invalidated cache pattern", extra={
+                    "pattern": pattern,
+                    "keys_deleted": len(keys)
+                })
+
+                return len(keys)
+
+            return 0
+
+        except Exception as e:
+            logger.warning("Failed to invalidate cache pattern", extra={
+                "pattern": pattern,
+                "error": str(e)
+            })
+            return 0
+
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        async with self._stats_lock:
+            total_requests = self.cache_hits + self.cache_misses
+            hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
+
+            return {
+                "cache_hits": self.cache_hits,
+                "cache_misses": self.cache_misses,
+                "hit_rate": round(hit_rate, 2),
+                "total_requests": total_requests,
+                "local_cache_size": len(self.local_cache.cache)
+            }
+
+    async def clear_all(self):
+        """Clear all cache data"""
+        await self.local_cache.clear()
+        try:
+            client = await self.redis.connect()
+            await client.flushdb()
+            logger.info("All cache cleared")
+        except Exception as e:
+            logger.warning("Failed to clear Redis cache", extra={"error": str(e)})
+
+    async def warmup_cache(self, warmup_data: Dict[str, Any]):
+        """Warm up cache with initial data"""
+        for key, (value, ttl) in warmup_data.items():
+            await self.set(key, value, ttl)
+
+        logger.info("Cache warmup completed", extra={
+            "keys_warmed": len(warmup_data)
+        })
+
 
 # Global cache manager instance
 cache_manager = CacheManager()
 
-async def get_cache_client() -> redis.Redis:
-    """Get Redis client with automatic connection management"""
-    return await cache_manager.connect()
 
-class Cache:
-    """High-level cache operations"""
+# Convenience functions
+async def cache_get(key: str) -> Optional[Any]:
+    """Get value from cache"""
+    return await cache_manager.get(key)
 
-    @staticmethod
-    async def get(key: str) -> Optional[Any]:
-        """Get value from cache"""
-        try:
-            client = await get_cache_client()
-            value = await client.get(key)
-            if value:
-                logger.debug("Cache hit", extra={"key": key})
-                return json.loads(value)
-            logger.debug("Cache miss", extra={"key": key})
-            return None
-        except Exception as e:
-            logger.error("Cache get error", extra={"key": key, "error": str(e)})
-            return None
 
-    @staticmethod
-    async def set(key: str, value: Any, ttl_seconds: Optional[int] = None) -> bool:
-        """Set value in cache"""
-        try:
-            client = await get_cache_client()
-            json_value = json.dumps(value, default=str)
+async def cache_set(key: str, value: Any, ttl: int = 300) -> bool:
+    """Set value in cache"""
+    return await cache_manager.set(key, value, ttl)
 
-            if ttl_seconds:
-                await client.setex(key, ttl_seconds, json_value)
-            else:
-                await client.set(key, json_value)
 
-            logger.debug("Cache set", extra={"key": key, "ttl": ttl_seconds})
-            return True
-        except Exception as e:
-            logger.error("Cache set error", extra={"key": key, "error": str(e)})
-            return False
+async def cache_delete(key: str) -> bool:
+    """Delete from cache"""
+    return await cache_manager.delete(key)
 
-    @staticmethod
-    async def delete(key: str) -> bool:
-        """Delete value from cache"""
-        try:
-            client = await get_cache_client()
-            result = await client.delete(key)
-            logger.debug("Cache delete", extra={"key": key, "deleted": result > 0})
-            return result > 0
-        except Exception as e:
-            logger.error("Cache delete error", extra={"key": key, "error": str(e)})
-            return False
 
-    @staticmethod
-    async def exists(key: str) -> bool:
-        """Check if key exists in cache"""
-        try:
-            client = await get_cache_client()
-            return await client.exists(key) > 0
-        except Exception as e:
-            logger.error("Cache exists error", extra={"key": key, "error": str(e)})
-            return False
+async def cache_get_or_set(key: str, getter_func: Callable[[], Any], ttl: int = 300) -> Any:
+    """Get from cache or set if not exists"""
+    return await cache_manager.get_or_set(key, getter_func, ttl)
 
-    @staticmethod
-    async def expire(key: str, ttl_seconds: int) -> bool:
-        """Set expiration time for key"""
-        try:
-            client = await get_cache_client()
-            return await client.expire(key, ttl_seconds)
-        except Exception as e:
-            logger.error("Cache expire error", extra={"key": key, "error": str(e)})
-            return False
 
-    @staticmethod
-    async def get_or_set(key: str, default_func, ttl_seconds: Optional[int] = None):
-        """Get value from cache or set it using default function"""
-        value = await Cache.get(key)
-        if value is not None:
-            return value
+async def cache_invalidate_pattern(pattern: str) -> int:
+    """Invalidate cache pattern"""
+    return await cache_manager.invalidate_pattern(pattern)
 
-        # Cache miss - compute value
-        value = await default_func()
-        if value is not None:
-            await Cache.set(key, value, ttl_seconds)
 
-        return value
+async def get_cache_stats() -> Dict[str, Any]:
+    """Get cache statistics"""
+    return await cache_manager.get_stats()
 
-class CacheKeys:
-    """Standardized cache key patterns"""
 
-    @staticmethod
-    def user_profile(user_id: str) -> str:
-        return f"user:profile:{user_id}"
+async def clear_cache():
+    """Clear all cache"""
+    await cache_manager.clear_all()
 
-    @staticmethod
-    def course_details(course_id: str) -> str:
-        return f"course:details:{course_id}"
 
-    @staticmethod
-    def course_progress(user_id: str, course_id: str) -> str:
-        return f"course:progress:{user_id}:{course_id}"
+# Cache key generators
+def generate_user_cache_key(user_id: str, resource: str = "") -> str:
+    """Generate cache key for user-related data"""
+    return f"user:{user_id}:{resource}" if resource else f"user:{user_id}"
 
-    @staticmethod
-    def user_permissions(user_id: str) -> str:
-        return f"user:permissions:{user_id}"
 
-    @staticmethod
-    def api_response(endpoint: str, params: str) -> str:
-        """Cache API responses"""
-        return f"api:response:{endpoint}:{hash(params)}"
+def generate_course_cache_key(course_id: str, resource: str = "") -> str:
+    """Generate cache key for course-related data"""
+    return f"course:{course_id}:{resource}" if resource else f"course:{course_id}"
 
-    @staticmethod
-    def analytics_data(query_type: str, params: str) -> str:
-        return f"analytics:{query_type}:{hash(params)}"
 
-# Cache TTL constants
-class CacheTTL:
-    """Standard cache TTL values in seconds"""
+def generate_list_cache_key(resource: str, filters: Dict[str, Any], page: int = 1, limit: int = 20) -> str:
+    """Generate cache key for list queries"""
+    filter_str = "_".join([f"{k}:{v}" for k, v in sorted(filters.items())])
+    return f"{resource}:list:{filter_str}:page{page}:limit{limit}"
 
-    USER_PROFILE = 300      # 5 minutes
-    COURSE_DETAILS = 600    # 10 minutes
-    COURSE_PROGRESS = 180   # 3 minutes
-    USER_PERMISSIONS = 300  # 5 minutes
-    API_RESPONSE = 60       # 1 minute
-    ANALYTICS_DATA = 1800   # 30 minutes
-    SESSION_DATA = 3600     # 1 hour
 
-async def health_check() -> Dict[str, Any]:
-    """Cache health check"""
-    return await cache_manager.health_check()
-
-async def close_connection():
-    """Close cache connection"""
-    await cache_manager.disconnect()
+# Context manager for cache operations
+@asynccontextmanager
+async def cache_transaction():
+    """Context manager for cache operations"""
+    try:
+        yield cache_manager
+    except Exception as e:
+        logger.error("Cache transaction failed", extra={"error": str(e)})
+        raise
+    finally:
+        # Could add cleanup logic here if needed
+        pass
