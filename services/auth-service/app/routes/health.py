@@ -2,14 +2,14 @@
 Health check routes for Auth Service
 """
 from fastapi import APIRouter, HTTPException
-from shared.common.database import health_check as db_health
+from shared.common.database import health_check as db_health, get_database
 from shared.common.logging import get_logger
 from shared.config.config import settings
 
 logger = get_logger("auth-service")
 router = APIRouter()
 
-@router.get("/health")
+@router.get("/")
 async def health_check():
     """Basic health check endpoint"""
     return {

@@ -72,11 +72,11 @@ def create_application() -> FastAPI:
     # if settings.environment == "production":
     #     app.add_middleware(RateLimitMiddleware, requests_per_minute=1000)
 
-    # Include routers
-    app.include_router(proxy_router, prefix="", tags=["Proxy"])
+    # Include routers (order matters - specific routes before catch-all)
     app.include_router(health_router, prefix="", tags=["Health"])
     app.include_router(discovery_router, prefix="/discovery", tags=["Service Discovery"])
     app.include_router(monitoring_router, prefix="/monitoring", tags=["Monitoring"])
+    app.include_router(proxy_router, prefix="", tags=["Proxy"])
 
     # Root endpoint
     @app.get("/")

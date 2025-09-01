@@ -36,7 +36,7 @@ SERVICE_ROUTES = {
     "/files": "file"
 }
 
-def determine_target_service(path: str) -> str:
+def determine_target_service(path: str) -> str | None:
     """Determine which service should handle the request"""
     path_parts = path.split("/")
     if not path_parts or path_parts[0] == "":
@@ -76,10 +76,20 @@ async def proxy_request(request: Request, path: str):
     This is the main routing endpoint that forwards requests to the appropriate
     service based on the URL path.
     """
+    target_service = None
     try:
         # Handle /api prefix
         if path.startswith("api/"):
             path = path[4:]  # Remove "api/" prefix
+
+        # Skip gateway-specific endpoints
+        gateway_endpoints = [
+            "health", "docs", "redoc", "openapi.json",
+            "discovery", "monitoring", "services", "routes", "ws-test"
+        ]
+
+        if path in gateway_endpoints or path.startswith(("health/", "discovery/", "monitoring/")):
+            raise HTTPException(404, f"Gateway endpoint: {path}")
 
         # Determine target service
         target_service = determine_target_service(path)
