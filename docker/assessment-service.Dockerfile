@@ -29,4 +29,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8005/health || exit 1
 
 # Run the service
-CMD ["python", "services/assessment-service/main.py"]
+CMD ["python", "-m", "services.assessment-service.app.main"]

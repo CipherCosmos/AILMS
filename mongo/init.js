@@ -209,7 +209,7 @@ db.users.insertOne({
     "email": "admin@lms.com",
     "name": "System Administrator",
     "role": "super_admin",
-    "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj6fYzYXxQK", // "admin123"
+    "password_hash": "$2b$12$PLACEHOLDER_REPLACE_WITH_ENV_VAR",
     "created_at": new Date().toISOString(),
     "is_active": true,
     "email_verified": true
@@ -273,5 +273,5 @@ db.roles.insertMany([
 
 print("✅ LMS Database initialized successfully!");
 print("📊 Created collections and indexes");
-print("👤 Created default admin user: admin@lms.com / admin123");
+print("👤 Created default admin user: admin@lms.com (password set via environment variable)");
 print("🏢 Created default tenant and roles");

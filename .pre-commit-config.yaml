@@ -1,0 +1,104 @@
+repos:
+  # Code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: [--line-length=100]
+
+  # Import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=100]
+
+  # Linting
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.1
+    hooks:
+      - id: flake8
+        args: [--max-line-length=100, --extend-ignore=E203,W503]
+        exclude: ^(migrations/|__pycache__/|\.pytest_cache/)
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: [--ignore-missing-imports, --show-error-codes]
+        exclude: ^(tests/|scripts/)
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: [-r, services/, shared/]
+        exclude: ^(tests/|scripts/)
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types: [yaml]
+        exclude: ^(charts/|\.github/)
+
+  # JSON formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types: [json]
+
+  # Commit message linting
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  # Remove trailing whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(.*\.md|\.github/|\.gitignore)
+      - id: end-of-file-fixer
+        exclude: ^(.*\.md|\.github/|\.gitignore)
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: debug-statements
+
+  # Custom hooks
+  - repo: local
+    hooks:
+      # Check for hardcoded secrets
+      - id: check-secrets
+        name: Check for hardcoded secrets
+        entry: python scripts/check_secrets.py
+        language: system
+        files: \.(py|yaml|yml|json)$
+        exclude: ^(tests/|\.env)
+
+      # Validate environment configuration
+      - id: validate-env
+        name: Validate environment configuration
+        entry: python scripts/validate_config.py
+        language: system
+        files: ^\.env.*$
+        pass_filenames: false
+
+      # Check API documentation
+      - id: check-api-docs
+        name: Check API documentation
+        entry: python scripts/check_api_docs.py
+        language: system
+        files: services/.*/main\.py$
+        pass_filenames: false
